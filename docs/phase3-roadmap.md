@@ -1,221 +1,173 @@
-# Phase 3 — Feuille de route : Compagnon émotionnel intelligent & triage clinique digital
+# Roadmap — Compagnon émotionnel intelligent & triage clinique digital
 
 **Principe directeur :** ne jamais remplacer l'humain en cas de risque — toujours orienter.
 
 ---
 
-## 1. Architecture globale du système
+## Architecture globale
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  INPUT                                                      │
-│  Émotion sélectionnée + Texte libre                         │
+│  Émotions sélectionnées (multi) + Texte libre               │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
-│  PROCESSING (Phase 1 + 2 — déjà implémenté)                 │
+│  PROCESSING — scoringEngine.ts (Phase 2, v2)                │
 │                                                             │
 │  DistilBERT → score_distress [0–1]                          │
-│  + emotionFloor (plancher clinique par émotion)             │
-│  + masking detection (émotion positive / texte alarmant)    │
-│  + keyword detection (4 dimensions cliniques)               │
+│  + Fix 1 : fallback selfScore + DISTRESS_TEXT_SIGNALS       │
+│  + Fix 2 : règle du maximum (mlAdjusted ne peut pas baisser)│
+│  + Fix 3 : dimensions cliniques avant guard ML              │
+│  + 33 keywords critiques (idéation directe + indirecte)     │
+│  + 4 dimensions enrichies (Maslach, triade dépressive…)     │
 │  → DiagnosticProfile { distressLevel, clinicalProfile, ... }│
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
-│  PHASE 3 — Solution Engine                                  │
+│  SOLUTION ENGINE — solutionEngine.ts / src/solutions/       │
 │                                                             │
 │  DiagnosticProfile → niveau 0–4                             │
-│  → protocole clinique adapté                                │
 │  → message empathique (kids / adult)                        │
 │  → micro-actions (CBT / ACT / mindfulness)                  │
-│  → ressources (proches / psy / urgence)                     │
-│  → escalade si niveau ≥ 3                                   │
+│  → ressources (3114, SAMU, Mon Soutien Psy…)                │
+│  → escalade si niveau ≥ 4                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Modèle de triage en 5 niveaux
+## Modèle de triage en 5 niveaux
 
 | Niveau | État clinique | distressLevel | clinicalProfile | Objectif |
 |--------|--------------|---------------|-----------------|----------|
-| **0** | Bien-être / ressource | light | wellbeing | Renforcement positif |
-| **1** | Inconfort léger adaptatif | light | adjustment | Auto-régulation |
-| **2** | Détresse modérée | elevated | burnout / anxiety / depression | Structuration + accompagnement |
-| **3** | Alerte clinique | critical | depression / burnout | Orientation aide humaine |
-| **4** | Urgence critique | critical | crisis | Protection immédiate |
-
-### Règle de mapping DiagnosticProfile → Niveau
-
-```
-clinicalProfile = crisis                           → Niveau 4
-distressLevel = critical AND emotionId IN {sadness, fear, tiredness}  → Niveau 3
-distressLevel = critical (autres)                  → Niveau 3
-clinicalDimensions includes {burnout, depression_masked} → Niveau 2–3
-distressLevel = elevated                           → Niveau 2
-clinicalProfile = adjustment                       → Niveau 1
-clinicalProfile = wellbeing                        → Niveau 0
-```
+| **0** | Bien-être | light | wellbeing | Renforcement positif |
+| **1** | Inconfort léger | light | adjustment | Auto-régulation |
+| **2** | Détresse modérée | elevated | burnout / anxiety / depression | Structuration |
+| **3** | Alerte clinique | critical | depression / burnout | Orientation professionnelle |
+| **4** | Urgence critique | critical | crisis | Protection immédiate — 3114 |
 
 ---
 
-## 3. Protocoles par dimension clinique
+## Phase 1 — NLP Pipeline ✅ TERMINÉE
 
-### 😔 TRISTESSE / DÉPRESSION
-
-| Niveau | Actions | Brique thérapeutique |
-|--------|---------|---------------------|
-| 0–1 | Journaling guidé, activation comportementale, activité agréable | CBT — Behavioral Activation |
-| 2 | Restructuration cognitive ("preuve pour/contre"), suggestion parler à un proche | CBT — Cognitive Restructuring |
-| 3 | Encouragement explicite à consulter, annuaire psy / téléconsultation | Orientation professionnelle |
-| 4 | 📞 3114, urgences — bouton "appeler maintenant" | Protocole de crise |
-
-### 😡 COLÈRE / FRUSTRATION / DYSRÉGULATION
-
-| Niveau | Actions | Brique thérapeutique |
-|--------|---------|---------------------|
-| 0–1 | Respiration 4-6, pause comportementale | Régulation émotionnelle |
-| 2 | Identification déclencheur, reformulation cognitive | CBT — Restructuration |
-| 3 | Retrait situationnel, médiation guidée | ACT — Distanciation |
-| 4 | Redirection immédiate vers aide urgente | Protocole de crise |
-
-### 😰 ANXIÉTÉ / STRESS / PEUR
-
-| Niveau | Actions | Brique thérapeutique |
-|--------|---------|---------------------|
-| 0–1 | Respiration cohérente cardiaque, grounding 5-4-3-2-1 | CBT anxiété |
-| 2 | Exposition douce (micro-steps), décomposition du problème | CBT — Exposition progressive |
-| 3 | Orientation thérapeute, psychoéducation (TAG, panique) | Orientation + psychoéducation |
-| 4 | Guidance immédiate + contact urgence | Protocole de crise |
-
-### 😴 FATIGUE / BURN-OUT
-
-| Niveau | Actions | Brique thérapeutique |
-|--------|---------|---------------------|
-| 0–1 | Hygiène de sommeil, micro-pauses, respiration | Psychoéducation |
-| 2 | Bilan charge mentale, priorisation, délégation | Coaching guidé |
-| 3 | Consultation recommandée (médecin traitant) | Stepped-care — orientation |
-| 4 | Protocole crise si désespoir associé | Protocole de crise |
-
-### 😊 JOIE / ZEN / FIERTÉ (niveaux 0)
-
-| État | Actions | Note clinique |
-|------|---------|---------------|
-| Joie | Ancrage positif, partage social | Attention : hyperactivité + impulsivité → screening hypomanie |
-| Zen | Gratitude, méditation courte | Consolidation |
-| Fierté | Journal des réussites, renforcement | Construire l'estime durable |
+- [x] Datasets : Kaggle Reddit + DAIR-AI + GoEmotions (170K exemples)
+- [x] Baseline TF-IDF + Logistic Regression (90.9% accuracy)
+- [x] DistilBERT fine-tuned (96.8% accuracy)
+- [x] API FastAPI (`/predict`, `/explain`, `/health`)
+- [x] Dashboard Streamlit + SHAP
+- [x] CI GitHub Actions (ruff + pytest)
 
 ---
 
-## 4. Briques thérapeutiques — bibliothèque de micro-actions
+## Phase 2 — Web App React ✅ TERMINÉE
 
-### CBT (Thérapie Cognitive Comportementale)
-- Activation comportementale (planifier activités agréables)
-- Restructuration cognitive (identifier + challenger pensée négative)
-- Journaling guidé ("qu'est-ce qui s'est passé ? comment je me suis senti ?")
-
-### ACT (Acceptation & Engagement)
-- Défusion cognitive ("j'observe ma pensée, je ne suis pas ma pensée")
-- Clarification de valeurs
-- Agir malgré l'inconfort
-
-### Pleine conscience / Mindfulness
-- Respiration cohérente cardiaque (5s inspiration, 5s expiration)
-- Respiration 4-7-8 (anxiété)
-- Grounding 5-4-3-2-1 (5 choses vues, 4 entendues, 3 touchées, 2 odeurs, 1 goût)
-- Scan corporel (2 minutes)
-
-### Psychoéducation
-- Expliquer le cycle stress-fatigue
-- Normaliser l'anxiété ("l'anxiété protège, elle peut devenir envahissante")
-- Comprendre la dépression masquée
-
-### Soutien social
-- Inciter à nommer une personne de confiance
-- Script pour "comment en parler à quelqu'un"
+- [x] 6 écrans : Welcome, EmotionSelection, Expression, SupportResponse, Solutions, CheckIn
+- [x] Pipeline clinique `scoringEngine.ts` (planchers, masking, dimensions, profils)
+- [x] Moteur de recommandation `solutionEngine.ts` (triage 0–4, CBT/ACT/mindfulness)
+- [x] Bibliothèque thérapeutique `data/solutions.ts` (20 micro-actions, ressources France)
+- [x] 17 keywords critiques → `critical` immédiat
 
 ---
 
-## 5. Ressources par niveau (France)
+## Phase 3 — Backend & Déploiement ✅ TERMINÉE
 
-| Niveau | Ressource | Détail |
-|--------|-----------|--------|
-| 2 | Mon Soutien Psy | Séances remboursées avec psychologue |
-| 2 | Doctolib | Prise de RDV téléconsultation |
-| 3 | Médecin traitant | Consultation + orientation spécialisée |
-| 3 | Psycom | Annuaire psy certifié |
-| 4 | **3114** | Numéro national prévention suicide — gratuit 24/7 |
-| 4 | **15 / 112** | SAMU / Urgences |
-| Enfant | Fil Santé Jeunes | 0 800 235 236 — gratuit, anonyme |
+### Sprint 1 — POST /solutions ✅
+- [x] `src/solutions/schemas.py` — `DiagnosticProfileRequest`, `SolutionResponse`
+- [x] `src/solutions/data.py` — port Python de `data/solutions.ts`
+- [x] `src/solutions/engine.py` — `map_to_triage_level`, `compute_solution`
+- [x] `src/api/solutions_router.py` — `POST /solutions` avec sanitisation emotionId
 
----
+### Sprint 2 — Multi-sélection émotions ✅
+- [x] `EmotionSelection.tsx` — multi-select toggle (max 2 kids / 3 adult)
+- [x] `CLINICAL_PRIORITY` map — émotion primaire cliniquement dominante
+- [x] Propagation `emotionIds[]` + `emotionLabels[]` dans tout le flow
+- [x] Badges émotions secondaires dans `Expression.tsx`
 
-## 6. Architecture technique Phase 3
+### Sprint 3 — CheckIn backend ✅
+- [x] `src/checkin/engine.py` — `compute_reminder()` (1h / 4h / tomorrow)
+- [x] `src/checkin/schemas.py` — `ReminderRequest`, `ReminderResponse`
+- [x] `src/api/checkin_router.py` — `POST /checkin/reminder`, `GET /checkin/reminders`
+- [x] `CheckIn.tsx` — appel réel API + `scheduled_label` affiché + fallback gracieux
 
-### Fichiers à créer
+### Sprint 4 — Tests unitaires frontend ✅
+- [x] `vitest.config.ts` — config Vitest (node env, coverage v8)
+- [x] `scoringEngine.test.ts` — 46 tests (sanitize, computeFinalScore, dimensions, distressLevel, profil)
+- [x] `solutionEngine.test.ts` — 25 tests (triage 0–4, ressources, briques, kids/adult, 3114)
+- [x] Scripts `npm test` / `npm run test:coverage`
 
-```
-frontend/src/
-├── types/
-│   ├── diagnostic.ts      ✅ (fait — DiagnosticProfile, ClinicalProfile)
-│   └── solutions.ts       🔜 (SolutionResponse, MicroAction, Resource)
-├── data/
-│   └── solutions.ts       🔜 (tout le contenu thérapeutique)
-├── lib/
-│   └── solutionEngine.ts  🔜 (moteur de recommandation)
-└── screens/
-    └── Solutions.tsx       🔜 (écran Phase 3)
-```
-
-### Nouveau screen dans le flow
-
-```
-SupportResponse
-  ↓ (bouton "Voir mes pistes")
-Solutions          ← NOUVEAU — Phase 3
-  ↓
-CheckIn
-```
-
-### Contrat de données SolutionResponse
-
-```typescript
-interface SolutionResponse {
-  level: 0 | 1 | 2 | 3 | 4;
-  message: string;                    // message empathique personnalisé
-  microActions: MicroAction[];        // 2–3 actions concrètes
-  therapeuticBrick: TherapeuticBrick; // CBT | ACT | mindfulness | psychoeducation
-  resources: Resource[];              // vides si niveau 0–1
-  escalationRequired: boolean;        // true si niveau ≥ 4
-}
-```
+### Sprint 5 — Déploiement slim ✅
+- [x] `Dockerfile.api.slim` — sans torch/transformers/sklearn (~150MB)
+- [x] `requirements.slim.txt` — dépendances minimales
+- [x] Imports ML conditionnels dans `main.py` (`_ML_AVAILABLE` flag)
+- [x] `ALLOWED_ORIGINS` env var (CORS configurable)
+- [x] `Dockerfile.frontend` — nginx:alpine multi-stage
+- [x] `docker/nginx.conf` — SPA routing + proxy + security headers
+- [x] `render.yaml` — one-click deploy
+- [x] `vercel.json` — SPA routing
+- [x] Déployé : Render (API) + Vercel (frontend) — $0/mois
 
 ---
 
-## 7. Roadmap d'implémentation
+## Phase 4 — Correctifs sécurité clinique ✅ TERMINÉE
 
-### Sprint 1 — Moteur ✅ TERMINÉ
-- [x] `src/types/solutions.ts` — types SolutionResponse (+ `closing`), MicroAction, Resource, TriageLevel, TherapeuticBrick
-- [x] `src/data/solutions.ts` — bibliothèque complète : 20 micro-actions, PROFILE_MESSAGES enrichis v2, PROFILE_CLOSINGS, RESOURCES_BY_LEVEL
-- [x] `src/lib/solutionEngine.ts` — selectMessage, selectClosing, selectActions, selectBrick, computeSolution
+### Biais critique corrigé : incohérence émotion/texte
 
-### Sprint 2 — Écran Solutions ✅ TERMINÉ
-- [x] `screens/Solutions.tsx` — message + micro-actions + ressources + escalade + clôture + bloc "Et maintenant ?"
-- [x] Intégration dans routes.ts (`/solutions`)
-- [x] Lien depuis SupportResponse (CTA "Voir mes pistes d'action" → `/solutions`)
-- [x] Scripts UX/cliniques v2 intégrés — 8 émotions × 5 niveaux × kids/adult
-- [x] 17 keywords critiques (filet de sécurité absolu)
+Problème identifié : sélection d'une émotion positive (joy) + texte exprimant une détresse → message positif renvoyé. Risque clinique critique.
 
-### Sprint 3 — Backend & polish 🔜 EN ATTENTE
-- [ ] Endpoint FastAPI `POST /solutions` (pour contenu dynamique / LLM futur)
-- [ ] Multi-sélection émotions (Palier 2 — `EmotionSelection.tsx`)
-- [ ] Connexion `/checkin` backend pour vrais rappels
-- [ ] Tests unitaires frontend (solutionEngine, computeFinalScore, detectClinicalDimensions)
-- [ ] Revue Copilot + scan sécurité final
+- [x] **Fix 1** — Fallback sans ML : `max(emotionFloor, selfScore)` + `DISTRESS_TEXT_SIGNALS` (25 phrases FR/EN)
+- [x] **Fix 2** — Règle du maximum : `finalScore = max(blended, floor, mlAdjusted)` ; masking dès `mlScore > 0.25` (+0.20)
+- [x] **Fix 3** — Dimensions cliniques avant null-guard ML
 
-### Contraintes non-négociables
+### Enrichissement DIMENSION_KEYWORDS (recommandations clinicien)
+
+- [x] **CRITICAL_KEYWORDS** enrichis : 33 keywords (directe + indirecte : fardeau, disparition perçue bénéfique, EN)
+- [x] **burnout** : + cynisme/désengagement + inefficacité (modèle Maslach tri-dimensionnel)
+- [x] **anxiety** : + anticipation catastrophiste + hypervigilance somatique
+- [x] **depression_masked** : + anhédonie + fatigue morale + ralentissement psychomoteur + isolement
+- [x] **dysregulation** : + impulsivité/fuite (note : `"j'ai besoin de disparaître"` → CRITICAL)
+- [x] **DISTRESS_TEXT_SIGNALS** : 25 signaux généraux pour fallback sans ML
+
+### Disclaimer médical
+- [x] Phrase légale ajoutée sur la homepage : _"Cette application ne constitue pas un dispositif médical et ne remplace en aucun cas un avis médical, un diagnostic ou un traitement par un professionnel de santé."_
+
+---
+
+## Phase 5 — Backlog (prochaine itération)
+
+### Amélioration du modèle clinique
+
+- [ ] Détection co-occurrence (patterns multi-dimensions → triage plus précis)
+- [ ] Modifiers fréquence/intensité (`"souvent"`, `"tout le temps"`, `"très"`, `"plus du tout"`)
+- [ ] Axe temporel : durée des symptômes (`"depuis des semaines"`)
+- [ ] Test utilisateurs → recalibration EMOTION_FLOOR et seuils
+
+### Expérience utilisateur
+
+- [ ] Mode hors-ligne (PWA — fonctionnel sans réseau)
+- [ ] Historique des check-ins (localStorage ou backend persistant)
+- [ ] Notifications réelles via service worker (rappels planifiés)
+- [ ] Accessibilité (WCAG 2.1 AA — screen reader, contraste, focus)
+
+### Backend & infrastructure
+
+- [ ] Base de données persistante (sessions anonymisées — opt-in)
+- [ ] Rate limiting sur les endpoints (protection abus)
+- [ ] Logs structurés + monitoring (Sentry ou Datadog free tier)
+- [ ] Tests d'intégration E2E (Playwright)
+- [ ] Modèle NLP FR natif (CamemBERT) — remplace traduction FR→EN
+
+### Conformité
+
+- [ ] Analyse RGPD / DPIA (données de santé en clair)
+- [ ] Conformité ANSSI / HDS si hébergement données de santé
+- [ ] Audit de sécurité externe avant ouverture publique large
+
+---
+
+## Contraintes non-négociables (permanentes)
+
 - Niveau 4 → jamais d'écran vide, toujours le 3114 visible
-- Enfants → jamais afficher un score numérique de détresse
-- Aucune action irréversible sans confirmation utilisateur
-- L'app ne pose jamais de diagnostic — elle oriente
+- Mode enfants → jamais afficher un score numérique de détresse
+- L'app ne pose jamais de diagnostic médical — elle oriente
+- Tout signal de crise → escalade humaine immédiate
