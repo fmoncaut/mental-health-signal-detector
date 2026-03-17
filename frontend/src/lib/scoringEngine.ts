@@ -1,8 +1,12 @@
 /**
  * scoringEngine — Fonctions pures d'analyse clinique
  *
- * Extraites de SupportResponse pour permettre les tests unitaires.
- * Aucune dépendance React — 100% testable sans environnement DOM.
+ * Correctifs sécurité (v2) :
+ *   Fix 1 — Fallback sans ML : utilise selfScore + DISTRESS_TEXT_SIGNALS
+ *   Fix 2 — Règle du maximum : seuil de masquage abaissé à > 0.25 (bonus +0.20)
+ *            le texte ne peut jamais abaisser le triage sous son propre signal
+ *   Fix 3 — Dimensions cliniques vérifiées avant le null-guard ML
+ *            → s'appliquent même si l'API est indisponible
  */
 
 import type { ClinicalDimension, ClinicalProfile, DiagnosticProfile } from "../types/diagnostic";
@@ -14,15 +18,12 @@ export const CRITICAL_KEYWORDS = [
   "suicide", "suicider", "me tuer", "mourir", "plus envie de vivre",
   "disparaître", "en finir", "me supprimer", "j'ai envie de mourir",
   "pensées suicidaires", "je veux mourir",
-  // Scripts UX cliniques — mots-clés additionnels
   "je n'en peux plus", "je veux disparaître", "je ne veux plus être là",
   "personne ne m'aime", "personne ne peut m'aider",
   "je ne veux plus vivre", "j'en ai marre de tout", "tout seul au monde",
 ];
 
 // ─── Seuils de triage clinique ───────────────────────────────────────────────
-// CRITICAL ≥ 0.65 → détresse probable (95e percentile clinique)
-// ELEVATED ≥ 0.35 → signal à surveiller (50e percentile clinique)
 export const SCORE_CRITICAL = 0.65;
 export const SCORE_ELEVATED = 0.35;
 
@@ -32,6 +33,19 @@ export const EMOTION_FLOOR: Record<string, number> = {
   anger: 0.30, stress: 0.25, tiredness: 0.30,
   joy: 0.0, calm: 0.0, pride: 0.0,
 };
+
+// ─── Signaux texte de détresse générale (Fix 1 & 3) ─────────────────────────
+// Utilisés dans le fallback (API ML indisponible) pour détecter une incohérence
+// entre l'émotion sélectionnée (positive) et le texte saisi (négatif).
+export const DISTRESS_TEXT_SIGNALS = [
+  "je me sens mal", "ça ne va pas", "je souffre", "j'ai du mal",
+  "tout va mal", "je suis épuisé", "je pleure", "je suis triste",
+  "j'en ai marre", "je suis perdu", "je suis seul", "je me sens seul",
+  "j'ai peur", "je suis anxieux", "je suis stressé", "ça fait mal",
+  "je ne suis pas bien", "je vais pas bien", "j'ai besoin d'aide",
+  "i feel bad", "i'm struggling", "i'm suffering", "i feel terrible",
+  "i'm not okay", "i'm not ok",
+];
 
 // ─── Détection de dimensions cliniques dans le texte ────────────────────────
 export const DIMENSION_KEYWORDS: Record<ClinicalDimension, string[]> = {
@@ -70,22 +84,28 @@ export function detectClinicalDimensions(text: string): ClinicalDimension[] {
   );
 }
 
-// ─── Score final fusionné ────────────────────────────────────────────────────
-// Formule : Score = (selfScore × 0.45) + (mlAdjusted × 0.55), clamped by floor
+// ─── Score final fusionné (Fix 2 — règle du maximum) ────────────────────────
+// Seuil de masquage abaissé : mlScore > 0.25 (vs 0.50 avant) pour les émotions
+// positives (floor < 0.2 : joy/calm/pride). Bonus porté à +0.20 (vs +0.15).
+// Garantit que "joy + texte modérément négatif" n'est jamais sous-estimé.
 export function computeFinalScore(
   mlScore: number,
   emotionId: string,
   selfScore: number | null
 ): number {
   const floor = EMOTION_FLOOR[emotionId] ?? 0.0;
-  const isMasking = floor < 0.2 && mlScore > 0.50;
-  const mlAdjusted = Math.min(1.0, mlScore + (isMasking ? 0.15 : 0));
+
+  // Détection de masquage émotion/texte : émotion positive + texte distressant
+  const isPositiveEmotion = floor < 0.2;
+  const isMasking = isPositiveEmotion && mlScore > 0.25;
+  const mlAdjusted = Math.min(1.0, mlScore + (isMasking ? 0.20 : 0));
 
   const blended = selfScore !== null
     ? selfScore * 0.45 + mlAdjusted * 0.55
     : mlAdjusted;
 
-  return Math.min(1.0, Math.max(blended, floor));
+  // Le texte ne peut pas abaisser le triage en dessous de son propre signal
+  return Math.min(1.0, Math.max(blended, floor, mlAdjusted));
 }
 
 // ─── Niveau de détresse ──────────────────────────────────────────────────────
@@ -96,25 +116,35 @@ export function getDistressLevel(
   dimensions: ClinicalDimension[],
   selfScore: number | null
 ): DistressLevel {
-  // 1. Sécurité absolue : keywords critiques
   const lowerText = userText.toLowerCase();
+
+  // 1. Sécurité absolue : keywords critiques
   if (CRITICAL_KEYWORDS.some((kw) => lowerText.includes(kw))) return "critical";
 
   // 2. Dysrégulation → toujours au moins elevated
   if (dimensions.includes("dysregulation")) return "elevated";
 
-  // 3. Fusion ML + self-report + émotion
+  // 3. Fix 3 — Dimensions cliniques : signal indépendant du score ML
+  //    S'applique même sans API (slim deployment) — évite l'incohérence
+  //    émotion positive + texte angoissant sans modèle disponible.
+  if (dimensions.length > 0) return "elevated";
+
+  // 4. Fusion ML + self-report + émotion (Fix 2)
   if (mlScore !== null) {
     const finalScore = computeFinalScore(mlScore, emotionId, selfScore);
     if (finalScore >= SCORE_CRITICAL) return "critical";
     if (finalScore >= SCORE_ELEVATED) return "elevated";
-    if (dimensions.length > 0) return "elevated";
     return "light";
   }
 
-  // 4. Fallback si API indisponible : émotion seule
+  // 5. Fix 1 — Fallback si API indisponible
+  //    Ordre de priorité : selfScore > plancher émotionnel > signaux texte
   const floor = EMOTION_FLOOR[emotionId] ?? 0.0;
-  if (floor >= 0.35) return "elevated";
+  const fallbackScore = selfScore !== null ? Math.max(floor, selfScore) : floor;
+  if (fallbackScore >= SCORE_CRITICAL) return "critical";
+  if (fallbackScore >= SCORE_ELEVATED) return "elevated";
+  // Signaux texte généraux : détecte "joy + je me sens mal" sans ML
+  if (DISTRESS_TEXT_SIGNALS.some((kw) => lowerText.includes(kw))) return "elevated";
   return "light";
 }
 

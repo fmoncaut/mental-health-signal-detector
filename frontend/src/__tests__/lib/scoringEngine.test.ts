@@ -10,6 +10,7 @@ import {
   SCORE_ELEVATED,
   EMOTION_FLOOR,
   CRITICAL_KEYWORDS,
+  DISTRESS_TEXT_SIGNALS,
 } from "../../lib/scoringEngine";
 
 // ─── sanitizeMlScore ─────────────────────────────────────────────────────────
@@ -60,7 +61,8 @@ describe("computeFinalScore", () => {
     expect(score).toBe(EMOTION_FLOOR.fear);
   });
 
-  it("aucun plancher pour joy/calm/pride", () => {
+  it("aucun plancher pour joy/calm/pride avec score très bas (≤ 0.25)", () => {
+    // Score ≤ 0.25 : pas de masquage → résultat = mlScore
     expect(computeFinalScore(0.05, "joy", null)).toBe(0.05);
     expect(computeFinalScore(0.0, "calm", null)).toBe(0.0);
     expect(computeFinalScore(0.1, "pride", null)).toBe(0.1);
@@ -69,27 +71,43 @@ describe("computeFinalScore", () => {
   it("blend pondéré avec self-report", () => {
     const ml = 0.6;
     const self = 0.8;
-    const expected = self * 0.45 + ml * 0.55; // 0.36 + 0.33 = 0.69
-    expect(computeFinalScore(ml, "stress", self)).toBeCloseTo(expected, 5);
+    const expected = self * 0.45 + (ml + 0.20) * 0.55; // masking car joy → +0.20
+    // Utilisons stress (pas d'émotion positive) pour tester le blend pur
+    const expectedStress = self * 0.45 + ml * 0.55; // 0.36 + 0.33 = 0.69
+    expect(computeFinalScore(ml, "stress", self)).toBeCloseTo(expectedStress, 5);
   });
 
-  it("masking detection : joy avec ML > 0.50 ajoute +0.15", () => {
-    // joy a floor=0.0 < 0.2, mlScore=0.6 > 0.50 → isMasking = true
-    const score = computeFinalScore(0.6, "joy", null);
-    expect(score).toBeCloseTo(0.75, 5); // 0.6 + 0.15
+  // Fix 2 — seuil masquage abaissé à > 0.25, bonus porté à +0.20
+  it("Fix 2 — masking : joy + ML > 0.25 ajoute +0.20", () => {
+    // joy floor=0.0 < 0.2, mlScore=0.3 > 0.25 → isMasking = true
+    expect(computeFinalScore(0.3, "joy", null)).toBeCloseTo(0.5, 5); // 0.3 + 0.20
   });
 
-  it("pas de masking pour sadness (floor=0.35, ≥ 0.2)", () => {
-    const scoreWithoutMasking = computeFinalScore(0.6, "sadness", null);
-    const scoreWithMasking = computeFinalScore(0.6, "joy", null);
-    // sadness ne doit pas bénéficier du bonus de masking
-    expect(scoreWithoutMasking).not.toBeCloseTo(scoreWithMasking, 5);
-    expect(scoreWithoutMasking).toBe(0.6); // pas de bonus, plancher < mlScore donc pas de clamp par le bas
+  it("Fix 2 — masking : joy + ML = 0.6 → 0.80", () => {
+    expect(computeFinalScore(0.6, "joy", null)).toBeCloseTo(0.80, 5); // 0.6 + 0.20
+  });
+
+  it("Fix 2 — pas de masking pour joy avec ML ≤ 0.25", () => {
+    // Score authentiquement bas → pas de bonus
+    expect(computeFinalScore(0.1, "joy", null)).toBe(0.1);
+    expect(computeFinalScore(0.25, "joy", null)).toBe(0.25); // exactement 0.25 → pas > 0.25
+  });
+
+  it("Fix 2 — pas de masking pour sadness (floor=0.35 ≥ 0.2)", () => {
+    const scoreStressTexte = computeFinalScore(0.6, "sadness", null);
+    const scoreJoieTexte = computeFinalScore(0.6, "joy", null);
+    expect(scoreStressTexte).not.toBeCloseTo(scoreJoieTexte, 5);
+    expect(scoreStressTexte).toBe(0.6);
   });
 
   it("ne dépasse jamais 1.0", () => {
     expect(computeFinalScore(1.0, "joy", 1.0)).toBe(1.0);
-    expect(computeFinalScore(0.95, "joy", null)).toBe(1.0); // 0.95 + 0.15 masking
+    expect(computeFinalScore(0.95, "joy", null)).toBe(1.0); // 0.95 + 0.20 → clamp
+  });
+
+  it("règle du maximum : mlAdjusted ne peut pas abaisser le score final", () => {
+    // Stress floor=0.25, mlScore=0.4 → final ≥ 0.4
+    expect(computeFinalScore(0.4, "stress", null)).toBeGreaterThanOrEqual(0.4);
   });
 });
 
@@ -145,39 +163,61 @@ describe("getDistressLevel", () => {
   });
 
   it("retourne critical quand score final ≥ SCORE_CRITICAL", () => {
-    // Score très élevé → critical
     expect(getDistressLevel(0.9, "texte normal", "stress", [], null)).toBe("critical");
   });
 
   it("retourne elevated quand score final ≥ SCORE_ELEVATED", () => {
-    // mlScore=0.4 > floor stress(0.25) → score=0.4 ≥ 0.35
     expect(getDistressLevel(0.4, "texte normal", "stress", [], null)).toBe("elevated");
   });
 
-  it("retourne light pour score bas et pas de dimensions", () => {
-    // mlScore=0.1, joy floor=0.0 → score=0.1+0.15=0.25 (masking) < 0.35
+  it("retourne light pour score bas authentiquement positif", () => {
+    // mlScore=0.1 ≤ 0.25 → pas de masking → score=0.1 < 0.35, texte positif
     expect(getDistressLevel(0.1, "je suis content", "joy", [], null)).toBe("light");
   });
 
-  it("retourne elevated si dimensions présentes même avec score bas", () => {
-    // mlScore=0.2, joy floor=0.0, score=0.2+0.15=0.35=SCORE_ELEVATED
-    // Si score est 0.2 sans masking (floor≥0.2) → vérifions anger
-    // anger floor=0.30, mlScore=0.1 → score=0.30 (plancher) < 0.35
-    // mais dimensions présentes → elevated
+  // Fix 3 — dimensions vérifiées avant le null-guard ML
+  it("Fix 3 — retourne elevated si dimensions présentes (avec ou sans ML)", () => {
     expect(getDistressLevel(0.1, "je n'arrive plus", "anger", ["burnout"], null)).toBe("elevated");
+    expect(getDistressLevel(null, "je n'arrive plus", "joy", ["burnout"], null)).toBe("elevated");
   });
 
-  it("fallback sans ML — sadness → elevated", () => {
+  it("Fix 3 — joy + texte anxieux (dimensions) → elevated même sans ML", () => {
+    expect(getDistressLevel(null, "j'angoisse tout le temps", "joy", ["anxiety"], null)).toBe("elevated");
+  });
+
+  // Fix 1 — fallback utilise selfScore
+  it("Fix 1 — fallback sans ML : sadness → elevated via plancher", () => {
     expect(getDistressLevel(null, "je suis triste", "sadness", [], null)).toBe("elevated");
   });
 
-  it("fallback sans ML — joy → light", () => {
-    expect(getDistressLevel(null, "je suis content", "joy", [], null)).toBe("light");
+  it("Fix 1 — fallback sans ML : joy + selfScore modéré → elevated", () => {
+    // selfScore=0.5 ∈ [0.35, 0.65[ → elevated
+    expect(getDistressLevel(null, "je suis content", "joy", [], 0.5)).toBe("elevated");
   });
 
-  it("self-report élevé augmente le niveau", () => {
-    // mlScore=0.3, selfScore=0.9, stress floor=0.25
-    // blended = 0.9*0.45 + 0.3*0.55 = 0.405 + 0.165 = 0.57 → elevated (< critical 0.65)
+  it("Fix 1 — fallback sans ML : joy + selfScore critique → critical", () => {
+    // selfScore=0.8 ≥ SCORE_CRITICAL=0.65 → critical
+    expect(getDistressLevel(null, "je suis content", "joy", [], 0.8)).toBe("critical");
+  });
+
+  it("Fix 1 — fallback sans ML : joy → light si selfScore bas", () => {
+    expect(getDistressLevel(null, "je suis content", "joy", [], null)).toBe("light");
+    expect(getDistressLevel(null, "je suis content", "joy", [], 0.1)).toBe("light");
+  });
+
+  // Fix 1 + 3 — DISTRESS_TEXT_SIGNALS dans le fallback
+  it("Fix 1+3 — joy + texte négatif explicite sans ML → elevated (incohérence émotion/texte)", () => {
+    expect(getDistressLevel(null, "je me sens mal", "joy", [], null)).toBe("elevated");
+    expect(getDistressLevel(null, "ça ne va pas du tout", "calm", [], null)).toBe("elevated");
+    expect(getDistressLevel(null, "j'ai besoin d'aide", "pride", [], null)).toBe("elevated");
+  });
+
+  it("Fix 1+3 — texte positif avec émotion positive sans ML → light (pas de faux positif)", () => {
+    expect(getDistressLevel(null, "je suis vraiment content", "joy", [], null)).toBe("light");
+    expect(getDistressLevel(null, "tout va bien", "calm", [], null)).toBe("light");
+  });
+
+  it("self-report élevé avec ML augmente le niveau", () => {
     const level = getDistressLevel(0.3, "stressé", "stress", [], 0.9);
     expect(level).toBe("elevated");
   });
@@ -187,6 +227,12 @@ describe("getDistressLevel", () => {
       const level = getDistressLevel(0, `context: ${kw}`, "joy", [], null);
       expect(level).toBe("critical");
     }
+  });
+
+  // Fix 2 — masquage émotion/texte avec ML modéré
+  it("Fix 2 — joy + ML modéré (0.3) → elevated via masquage", () => {
+    // mlScore=0.3 > 0.25 → masking → mlAdjusted=0.50 ≥ 0.35 → elevated
+    expect(getDistressLevel(0.3, "je vais bien", "joy", [], null)).toBe("elevated");
   });
 });
 
@@ -266,7 +312,7 @@ describe("buildDiagnosticProfile", () => {
     expect(profile.clinicalProfile).toBe("crisis");
   });
 
-  it("gère mlScore null (API indisponible)", () => {
+  it("gère mlScore null (API indisponible) — émotion négative → elevated", () => {
     const profile = buildDiagnosticProfile({
       emotionId: "fear",
       mode: "adult",
@@ -293,6 +339,50 @@ describe("buildDiagnosticProfile", () => {
     expect(profile.distressLevel).toBe("light");
     expect(profile.clinicalProfile).toBe("wellbeing");
   });
+
+  // Fix 1+3 — cas critique : incohérence émotion/texte sans ML
+  it("Fix 1+3 — joy + texte négatif sans ML → elevated (biais corrigé)", () => {
+    const profile = buildDiagnosticProfile({
+      emotionId: "joy",
+      mode: "adult",
+      userText: "je me sens mal, ça ne va pas",
+      mlScore: null,
+      selfScore: null,
+      selfReportAnswers: null,
+    });
+
+    expect(profile.distressLevel).toBe("elevated");
+    expect(profile.clinicalProfile).toBe("adjustment");
+  });
+
+  // Fix 2 — masquage avec ML modéré
+  it("Fix 2 — joy + ML modéré → elevated via masquage émotion/texte", () => {
+    const profile = buildDiagnosticProfile({
+      emotionId: "joy",
+      mode: "adult",
+      userText: "bof",
+      mlScore: 0.3,
+      selfScore: null,
+      selfReportAnswers: null,
+    });
+
+    expect(profile.distressLevel).toBe("elevated");
+  });
+
+  // Fix 1 — selfScore dans le fallback
+  it("Fix 1 — joy + selfScore modéré sans ML → elevated", () => {
+    // selfScore=0.5 ∈ [0.35, 0.65[ → elevated
+    const profile = buildDiagnosticProfile({
+      emotionId: "joy",
+      mode: "adult",
+      userText: "tout va bien en fait",
+      mlScore: null,
+      selfScore: 0.5,
+      selfReportAnswers: [1, 2, 1],
+    });
+
+    expect(profile.distressLevel).toBe("elevated");
+  });
 });
 
 // ─── Constantes exportées ───────────────────────────────────────────────────
@@ -303,5 +393,8 @@ describe("constantes", () => {
   it("EMOTION_FLOOR sadness = 0.35", () => expect(EMOTION_FLOOR.sadness).toBe(0.35));
   it("CRITICAL_KEYWORDS contient au moins 15 entrées", () => {
     expect(CRITICAL_KEYWORDS.length).toBeGreaterThanOrEqual(15);
+  });
+  it("DISTRESS_TEXT_SIGNALS contient au moins 10 signaux", () => {
+    expect(DISTRESS_TEXT_SIGNALS.length).toBeGreaterThanOrEqual(10);
   });
 });
