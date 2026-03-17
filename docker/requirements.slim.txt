@@ -2,10 +2,12 @@
 # Utilisé par Dockerfile.api.slim pour Render / Railway / Fly.io
 
 # API
-fastapi==0.111.0
+fastapi>=0.115.0           # pulls starlette>=0.40.0 (CVE-2024-47874)
+starlette>=0.47.2          # CVE-2025-54121 (explicit pin)
 uvicorn[standard]==0.29.0
 pydantic==2.7.1
 pydantic-settings==2.2.1
+slowapi>=0.1.9             # rate limiting
 
 # Utils
 python-dotenv==1.0.1
@@ -14,4 +16,4 @@ loguru==0.7.2
 
 # Langue
 langdetect==1.0.9
-deep-translator==1.11.4
+deep-translator==1.11.4    # PYSEC-2022-252 : proxies non utilisé → voir .pip-audit-ignore
