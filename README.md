@@ -1,141 +1,113 @@
 # Mental Health Signal Detector
 
-Système de détection de signaux de détresse mentale — projet final Artefact School of Data.
+**Artefact School of Data — Bootcamp Data Science, Mars 2026**
 
-Combine un pipeline NLP (TF-IDF + DistilBERT), une API REST FastAPI et une web app mobile-first React pour orienter les utilisateurs en détresse vers des ressources adaptées.
-
-> **Avertissement clinique :** Cette application ne constitue pas un dispositif médical et ne remplace en aucun cas un avis médical, un diagnostic ou un traitement par un professionnel de santé.
-
----
-
-## Table des matières
-
-- [Architecture](#architecture)
-- [Datasets](#datasets)
-- [Modèles](#modèles)
-- [Performances](#performances)
-- [Installation](#installation)
-- [Entraînement](#entraînement)
-- [API](#api)
-- [Web App](#web-app)
-- [Dashboard](#dashboard)
-- [Docker & Déploiement](#docker--déploiement)
-- [Tests & CI](#tests--ci)
-- [Sécurité](#sécurité)
-- [Structure du projet](#structure-du-projet)
+Système AI de détection de signaux de détresse mentale via NLP sur textes Reddit, avec une application de check-in matinal « Comment vas-tu ce matin ? » à destination des adolescents et adultes.
 
 ---
 
 ## Architecture
 
 ```
-Texte (FR ou EN)
-    │
-    ▼
-Détection langue (langdetect)
-    │
-    ▼ si FR
-Traduction FR→EN (deep-translator, timeout 5s)
-    │
-    ▼
-Nettoyage texte (clean_text)
-    │
-    ├──► Baseline : TF-IDF + Logistic Regression  ──► score_distress [0–1]
-    │         └──► Explication SHAP (contributions par mot)
-    │
-    └──► Avancé   : DistilBERT fine-tuned          ──► score_distress [0–1]
-                          │
-                          ▼
-                 Pipeline clinique (scoringEngine.ts)
-                          │
-                ┌─────────┴──────────┐
-                │                    │
-         emotionFloor          DIMENSION_KEYWORDS
-         (plancher/émotion)    (burnout/anxiety/
-                                depression_masked/
-                                dysregulation)
-                │                    │
-                └─────────┬──────────┘
-                          │
-                   DiagnosticProfile
-                          │
-                          ▼
-                  Solution Engine (triage 0–4)
-                          │
-                   SolutionResponse
-              (message + micro-actions + ressources)
+src/
+├── api/          FastAPI REST API (/health, /predict, /checkin)
+├── checkin/      App check-in "Comment vas-tu ce matin ?" (Gradio)
+├── common/       Config, logging, détection/traduction langue FR↔EN
+├── dashboard/    Dashboard Streamlit + explainability SHAP
+└── training/     Preprocessing, entraînement, évaluation des modèles
 ```
-
-| Couche | Technologie |
-|--------|-------------|
-| ML / NLP | scikit-learn, HuggingFace Transformers |
-| Sérialisation modèle | joblib (format compact — artefacts ML internes) |
-| API REST | FastAPI + Uvicorn + CORS middleware |
-| Solution engine | `src/solutions/` — triage 0–4, ressources France |
-| Check-in backend | `src/checkin/` — rappels, planification |
-| Web App | React 18 + TypeScript + Tailwind v4 + Vite |
-| Dashboard | Streamlit + visualisation SHAP |
-| Traduction | deep-translator + timeout via `concurrent.futures` |
-| Infrastructure | Docker multi-stage + GitHub Actions CI |
-| Déploiement | Render (API slim) + Vercel (frontend) |
-
----
-
-## Datasets
-
-Trois sources publiques combinées — **170 000 exemples** après nettoyage :
-
-| Dataset | Source | Taille | Label détresse |
-|---------|--------|--------|---------------|
-| Reddit Depression | [Kaggle](https://www.kaggle.com/datasets/nikhileswarkomati/suicide-watch) | 2,47M posts → 100K sous-échantillonnés | `label=1` |
-| DAIR-AI/emotion | [HuggingFace](https://huggingface.co/datasets/dair-ai/emotion) | 18K phrases | sadness + fear → 1 |
-| GoEmotions (Google) | [HuggingFace](https://huggingface.co/datasets/google-research-datasets/go_emotions) | 54K commentaires | sadness, grief, fear, nervousness… → 1 |
-
-**Distribution finale :** 69% non-détresse / 31% détresse
 
 ---
 
 ## Modèles
 
-### Baseline — TF-IDF + Logistic Regression
-
-- TF-IDF : 50 000 features, unigrammes + bigrammes, `sublinear_tf=True`
-- Logistic Regression : `C=1.0`, `class_weight="balanced"`, `max_iter=1000`
-- Sérialisé via **joblib** dans `models/baseline.joblib`
-
-### Avancé — DistilBERT fine-tuned
-
-- Fine-tuning de `distilbert-base-uncased` sur HuggingFace Trainer
-- 3 epochs, batch 16, `max_length=128` — Colab T4 GPU (~8 min)
-- Sauvegardé dans `models/fine_tuned/` (format HuggingFace safetensors)
-
-> Fine-tuning CPU estimé à ~36h — utiliser `notebooks/distilbert_finetune_colab.ipynb`
+| Modèle | Dataset | Accuracy | F1 détresse |
+|--------|---------|----------|-------------|
+| Baseline TF-IDF + LR | 388K (Kaggle+DAIR-AI+GoEmotions+eRisk25) | 88.9% | 83% |
+| DistilBERT fine-tuné | DAIR-AI 16K (v1) | 96.8% | — |
+| DistilBERT v2 *(en cours)* | 388K combiné | *en cours* | — |
 
 ---
 
-## Performances
+## Datasets
 
-| Modèle | Dataset | Accuracy | F1 weighted | F1 macro |
-|--------|---------|----------|-------------|----------|
-| Baseline TF-IDF+LR | 170K exemples | **90.9%** | **91.0%** | **89.4%** |
-| DistilBERT fine-tuned | DAIR-AI (16K) | **96.8%** | — | — |
+| Source | Exemples | Type | Label |
+|--------|----------|------|-------|
+| Kaggle Reddit Depression | 100 000 | Posts Reddit | Communautaire |
+| DAIR-AI/emotion | 18 000 | Phrases courtes | 6 émotions → binaire |
+| GoEmotions (Google) | 53 000 | Commentaires Reddit | 28 émotions → binaire |
+| **eRisk25 (CLEF 2025)** | **217 000** | **Posts Reddit cliniques** | **Dépression validée** |
+| **Total** | **~388 000** | | |
+
+---
+
+## App "Comment vas-tu ce matin ?"
+
+Application de check-in matinal ludique pour ados et adultes.
+
+### 4 niveaux de réponse
+
+| Niveau | Déclencheur | Réponse |
+|--------|-------------|---------|
+| 🔵 CRITIQUE | Mots-clés idéation suicidaire (détectés avant tout scoring) | 3114 + SAMU immédiatement |
+| 🔴 ROUGE | Score ≥ 0.65 | Empathie + orientation professionnelle |
+| 🟡 JAUNE | 0.35 ≤ score < 0.65 | Question de suivi + tips |
+| 🟢 VERT | Score < 0.35 | Encouragement + tip du jour |
+
+### Structure clinique (5 axes)
+
+Inspiré de PHQ-9, GAD-7, MBI (Maslach Burnout Inventory) :
+
+- **AXE 1 — Affect** : tristesse, anxiété, irritabilité, vide
+- **AXE 2 — Cognitions** : inutilité, culpabilité, désespoir, catastrophisme
+- **AXE 3 — Somatique** : sommeil, fatigue, tension, respiration
+- **AXE 4 — Comportement** : retrait social, évitement, perte d'activité
+- **AXE 5 — Risque** : idéation suicidaire (CRITIQUE)
+
+### Sécurité
+
+- Détection CRITIQUE **avant** tout scoring ML (indépendant du modèle NLP)
+- Règle de sécurité emoji : le choix de l'utilisateur ne peut pas être contredit par le NLP
+- Boost d'intensité +0.15 si modificateurs fréquence détectés ("tout le temps", "depuis des semaines"...)
+- Ressources : 3114 (24h/7j), Mon Soutien Psy (12 séances remboursées), Fil Santé Jeunes
+
+### Support multilingue
+
+- Détection automatique FR/EN via `langdetect` (seed fixé pour déterminisme)
+- Traduction FR→EN via `deep-translator` avant analyse NLP
+- Seed fixé : `DetectorFactory.seed = 0`
 
 ---
 
 ## Installation
 
-**Prérequis :** Python 3.11+
+```bash
+# Cloner le repo
+git clone git@github.com:stanislav-grinchenko/mental-health-signal-detector.git
+cd mental-health-signal-detector
+git checkout Fabrice
+
+# Environnement
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+# Variables d'environnement
+cp .env.example .env
+```
+
+---
+
+## Lancement
 
 ```bash
-git clone https://github.com/fmoncaut/mental-health-signal-detector.git
-cd mental-health-signal-detector
+# API FastAPI
+bash scripts/run_api.sh          # → http://localhost:8000
 
-python -m venv .venv
-source .venv/bin/activate        # Linux/Mac
-# .venv\Scripts\activate         # Windows
+# Dashboard Streamlit
+bash scripts/run_dashboard.sh    # → http://localhost:8501
 
-pip install -r requirements.txt
-cp .env.example .env
+# App check-in Gradio
+python -m src.checkin.app        # → http://localhost:7860
 ```
 
 ---
@@ -143,337 +115,55 @@ cp .env.example .env
 ## Entraînement
 
 ```bash
-# Baseline (CPU, ~2 min)
-python -m src.training.train --model baseline
+# Baseline avec toutes les sources
+python -m src.training.train \
+  --model baseline \
+  --kaggle-path data/raw/reddit_depression_dataset.csv \
+  --go-emotions \
+  --erisk25-path data/raw/erisk25/ \
+  --kaggle-samples 100000
 
-# Full (Kaggle + DAIR-AI + GoEmotions — recommandé)
-python -m src.training.train --model baseline \
-    --kaggle-path data/raw/reddit_depression_dataset.csv \
-    --go-emotions \
-    --kaggle-samples 100000
+# DistilBERT v2 → notebook Colab
+# notebooks/distilbert_finetune_colab.ipynb
 ```
-
----
-
-## API
-
-### Démarrage
-
-```bash
-TRANSFORMERS_NO_TF=1 uvicorn src.api.main:app --reload --port 8000
-```
-
-### Endpoints
-
-#### `GET /health`
-```json
-{"status": "ok", "model_loaded": true}
-```
-
-#### `POST /predict`
-
-Prédit le niveau de détresse d'un texte (FR ou EN). Retourne `503` si le modèle est absent (déploiement slim).
-
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Je me sens tellement triste", "model_type": "baseline"}'
-```
-
-#### `POST /checkin`
-
-Check-in conversationnel — combine emoji de humeur + texte libre.
-
-```bash
-curl -X POST http://localhost:8000/checkin \
-  -H "Content-Type: application/json" \
-  -d '{"emoji": "😔", "text": "Fatigué depuis quelques jours", "step": 1}'
-```
-
-**Plancher de sécurité :**
-
-| Emoji | Niveau minimum |
-|-------|---------------|
-| 😢 | `red` — toujours |
-| 😔 | `yellow` — minimum garanti |
-
-#### `POST /checkin/reminder`
-
-Planifie un rappel (1h / 4h / demain). Stockage en mémoire (`deque`, maxlen=1000).
-
-```bash
-curl -X POST http://localhost:8000/checkin/reminder \
-  -H "Content-Type: application/json" \
-  -d '{"offset": "1h", "mode": "adult"}'
-```
-
-#### `POST /solutions`
-
-Calcule une `SolutionResponse` depuis un `DiagnosticProfile` — triage 0–4, micro-actions, ressources.
-
-```bash
-curl -X POST http://localhost:8000/solutions \
-  -H "Content-Type: application/json" \
-  -d '{"emotionId": "sadness", "mode": "adult", "userText": "...", "distressLevel": "elevated", "clinicalProfile": "depression", "clinicalDimensions": []}'
-```
-
----
-
-## Web App
-
-Application mobile-first "Comment vas-tu ?" — interface de check-in émotionnel avec moteur de recommandation clinique.
-
-### Démo en ligne
-
-- **Frontend** : [https://mental-health-signal-detector.vercel.app](https://mental-health-signal-detector.vercel.app)
-- **API** : [https://mental-health-signal-detector.onrender.com](https://mental-health-signal-detector.onrender.com)
-
-> L'instance Render free tier se met en veille après inactivité (cold start ~50s).
-
-### Lancement local
-
-```bash
-cd frontend
-npm install
-npm run dev       # http://localhost:5173
-```
-
-### Workflow utilisateur
-
-```
-Welcome → EmotionSelection → Expression → SupportResponse → Solutions → CheckIn
-```
-
-### Pipeline clinique (scoringEngine.ts)
-
-**3 correctifs sécurité (v2) :**
-
-| Fix | Problème corrigé | Solution |
-|-----|-----------------|----------|
-| Fix 1 — Fallback | Sans ML : selfScore et texte ignorés | Fallback utilise `max(emotionFloor, selfScore)` + `DISTRESS_TEXT_SIGNALS` |
-| Fix 2 — Règle du max | Émotion positive tire le score vers le bas | `finalScore = max(blended, floor, mlAdjusted)` ; masking déclenché dès mlScore > 0.25 (+0.20) |
-| Fix 3 — Dimensions avant guard | Dimensions cliniques ignorées sans ML | Vérification dimensions **avant** le null-guard `mlScore` |
-
-**Filet de sécurité absolu — 33 keywords critiques :**
-
-Idéation directe (`suicide`, `me tuer`, `je veux mourir`…) + idéation indirecte (`ça serait mieux sans moi`, `plus de raison de vivre`, `je suis un fardeau`…) + EN (`better off without me`, `no reason to live`…).
-
-→ Force `critical` immédiatement, sans tenir compte du score ML.
-
-**4 dimensions cliniques (enrichies — recommandations clinicien) :**
-
-| Dimension | Axes couverts |
-|-----------|--------------|
-| `burnout` | Épuisement + cynisme/désengagement + inefficacité (Maslach tri-dimensionnel) |
-| `anxiety` | Activation physiologique + anticipation catastrophiste + hypervigilance |
-| `depression_masked` | Triade dépressive (humeur ↓ + énergie ↓ + plaisir ↓) + isolement + cognitions négatives |
-| `dysregulation` | Passage à l'acte, auto-agression, perte de contrôle comportemental |
-
-**6 profils cliniques :** `crisis` · `depression` · `burnout` · `anxiety` · `adjustment` · `wellbeing`
-
-### Moteur de recommandation clinique (Solutions)
-
-| Niveau | État | Protocole |
-|--------|------|-----------|
-| 0 | Bien-être | Renforcement positif, ancrage |
-| 1 | Inconfort léger | Auto-régulation (CBT activation) |
-| 2 | Détresse modérée | Structuration + soutien (CBT/ACT) |
-| 3 | Alerte clinique | Orientation professionnelle |
-| 4 | Urgence critique | 3114 + SAMU — escalade immédiate |
-
-**Contraintes non-négociables :**
-- Niveau 4 → 3114 toujours visible, jamais d'écran vide
-- Mode enfants → aucun score numérique affiché
-- L'app n'émet jamais de diagnostic médical
-
-Voir [frontend/README.md](frontend/README.md) pour la documentation complète.
-
----
-
-## Dashboard
-
-```bash
-streamlit run src/dashboard/app.py
-# http://localhost:8501
-```
-
-Score de risque, label, langue détectée, graphique SHAP horizontal (baseline).
-
----
-
-## Docker & Déploiement
-
-### Local (full stack avec ML)
-
-```bash
-cd docker/
-docker-compose up --build
-```
-
-| Service | Dockerfile | Port |
-|---------|-----------|------|
-| `api` | `Dockerfile.api` | 8000 |
-| `frontend` | `Dockerfile.frontend` | 3000 |
-| `dashboard` | `Dockerfile.dashboard` | 8501 |
-
-### Slim (sans modèle ML — déploiement free tier)
-
-```bash
-docker build -f docker/Dockerfile.api.slim -t mhsd-api-slim .
-docker run -p 8000:8000 -e ALLOWED_ORIGINS=https://... mhsd-api-slim
-```
-
-- Pas de `torch` / `transformers` / `sklearn` (~150MB vs ~2.6GB)
-- `/predict` et `/explain` retournent `503` gracieusement
-- `/solutions`, `/checkin`, `/checkin/reminder`, `/health` : 100% fonctionnels
-
-### Render + Vercel (recommandé — $0/mois)
-
-**API sur Render :**
-- Language : Docker
-- Dockerfile : `docker/Dockerfile.api.slim`
-- Env vars : `ENV=production`, `ALLOWED_ORIGINS=https://your-app.vercel.app`
-
-**Frontend sur Vercel :**
-- Root Directory : `mental-health-signal-detector/frontend`
-- Env vars : `VITE_API_URL=https://your-api.onrender.com`
 
 ---
 
 ## Tests & CI
 
 ```bash
-pip install -r requirements-dev.txt
-ruff check src/ tests/
-pytest tests/ --cov=src --cov-report=term-missing
+pytest tests/ -q --cov=src
+ruff check src/
 ```
 
-**Backend (78 tests) :**
+CI GitHub Actions sur push → branche Fabrice ✅
 
-| Fichier | Couverture |
-|---------|-----------|
-| `tests/api/test_health.py` | `/health`, `/predict` sans modèle |
-| `tests/api/test_checkin.py` | `/checkin` : 422, emoji, NLP fallback, planchers sécurité |
-| `tests/api/test_reminder.py` | `/checkin/reminder` : validation, scheduling, UUID, labels FR |
-| `tests/api/test_solutions.py` | `/solutions` : triage 0–4, ressources, sanitisation, 3114 |
-| `tests/checkin/test_engine.py` | Score, niveaux, planchers 😢→RED 😔→YELLOW |
-| `tests/training/test_train.py` | Preprocessing, entraînement, scoring |
+---
 
-**Frontend (71 tests — Vitest) :**
-
-| Fichier | Couverture |
-|---------|-----------|
-| `scoringEngine.test.ts` | `sanitizeMlScore`, `computeFinalScore`, `detectClinicalDimensions`, `getDistressLevel` (Fix 1/2/3), `deriveClinicalProfile` |
-| `solutionEngine.test.ts` | Triage 0–4, ressources, briques thérapeutiques, mode kids/adult, 3114 |
+## Docker
 
 ```bash
-cd frontend
-npm test              # vitest run
-npm run test:coverage # couverture v8
-```
-
-**CI GitHub Actions** — déclenché sur push `main`, `Fabrice`, `Stan`, `Thomas`, `aimen` :
-```
-ruff → pytest --cov → vitest (à venir)
+cd docker/
+docker-compose up --build
 ```
 
 ---
 
-## Sécurité
+## Ressources d'aide intégrées
 
-| Mesure | Détail |
-|--------|--------|
-| **CORS** | `ALLOWED_ORIGINS` env var (comma-separated) — `*` en dev, origines restreintes en prod |
-| **Sérialisation** | joblib pour artefacts ML internes — non exposé au réseau |
-| **Erreurs API** | Messages génériques côté client, détails loggés côté serveur uniquement |
-| **Données sensibles** | Textes jamais loggués (longueur uniquement) |
-| **Traduction externe** | Timeout 5s via `concurrent.futures` + fallback silencieux |
-| **Validation URL** | `API_URL` normalisée + validée regex (protection SSRF) |
-| **Docker** | Conteneurs non-root (`appuser`, uid=1000) |
-| **Secrets** | `.env` dans `.gitignore` — jamais commité |
+| Ressource | Contact | Disponibilité |
+|-----------|---------|---------------|
+| 3114 — Prévention suicide | Appel gratuit | 24h/24, 7j/7 |
+| Mon Soutien Psy | monsoutienpsy.ameli.fr | 12 séances/an remboursées |
+| Fil Santé Jeunes (12-25 ans) | 0 800 235 236 | 9h–23h |
+| SAMU | 15 | Urgences 24h/24 |
 
 ---
 
-## Variables d'environnement
+## Contexte
 
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| `ENV` | `development` \| `production` | `development` |
-| `LOG_LEVEL` | Niveau de log | `INFO` |
-| `ALLOWED_ORIGINS` | Origines CORS autorisées (comma-separated) | `*` |
-| `MODEL_NAME` | Modèle HuggingFace de base | `distilbert-base-uncased` |
-| `MODEL_PATH` | Chemin DistilBERT fine-tuned | `./models/fine_tuned` |
+Ce projet s'inscrit dans la **Grande Cause Nationale 2025-2026 « Parlons santé mentale ! »**.
 
----
+Selon le baromètre Santé publique France 2024 : 1 adulte sur 6 a vécu un épisode dépressif, et 1 sur 2 n'a pas consulté de professionnel spécialisé. Les principaux freins : coût, stigmatisation, manque d'information sur les ressources disponibles.
 
-## Structure du projet
-
-```
-mental-health-signal-detector/
-├── frontend/                     # Web app React (Vite + React 18 + Tailwind v4)
-│   ├── src/
-│   │   ├── screens/              # Welcome, EmotionSelection, Expression,
-│   │   │                         # SupportResponse, Solutions, CheckIn
-│   │   ├── lib/
-│   │   │   ├── scoringEngine.ts  # Pipeline clinique pur (100% testé)
-│   │   │   ├── solutionEngine.ts # Moteur recommandation (triage 0–4)
-│   │   │   └── api.ts            # Client API avec VITE_API_URL
-│   │   ├── types/
-│   │   │   ├── diagnostic.ts     # DiagnosticProfile, ClinicalProfile…
-│   │   │   └── solutions.ts      # SolutionResponse, MicroAction, Resource…
-│   │   ├── data/
-│   │   │   └── solutions.ts      # Bibliothèque thérapeutique complète
-│   │   └── __tests__/lib/        # 71 tests Vitest (scoringEngine + solutionEngine)
-│   ├── vercel.json               # SPA routing Vercel
-│   ├── vitest.config.ts          # Config tests frontend
-│   └── vite.config.ts            # Proxy dev → :8000
-├── src/
-│   ├── api/
-│   │   ├── main.py               # FastAPI, CORS, imports ML conditionnels
-│   │   ├── checkin_router.py     # /checkin + /checkin/reminder
-│   │   ├── solutions_router.py   # POST /solutions
-│   │   └── dependencies.py       # get_model() avec lru_cache
-│   ├── checkin/
-│   │   ├── engine.py             # compute_score, get_level, compute_reminder
-│   │   ├── content.py            # Réponses/tips/ressources VERT/JAUNE/ROUGE
-│   │   └── schemas.py            # CheckInRequest/Response, ReminderRequest/Response
-│   ├── solutions/
-│   │   ├── engine.py             # map_to_triage_level, compute_solution
-│   │   ├── data.py               # Port Python de solutions.ts
-│   │   └── schemas.py            # DiagnosticProfileRequest, SolutionResponse
-│   ├── common/
-│   │   ├── config.py             # Settings pydantic-settings (+ allowed_origins)
-│   │   ├── language.py           # Détection langue + traduction FR→EN
-│   │   └── logging.py            # Loguru
-│   └── training/
-│       ├── preprocess.py         # Chargement datasets
-│       ├── train.py              # Baseline + DistilBERT
-│       ├── evaluate.py           # Métriques + SHAP
-│       └── predict.py            # Inférence
-├── docker/
-│   ├── Dockerfile.api            # Full (avec ML)
-│   ├── Dockerfile.api.slim       # Slim sans ML (~150MB) — Render free tier
-│   ├── Dockerfile.frontend       # nginx:alpine multi-stage
-│   ├── nginx.conf                # SPA routing + proxy API + security headers
-│   ├── docker-compose.yml        # api + frontend + dashboard
-│   └── requirements.slim.txt     # Sans torch/transformers/sklearn
-├── tests/
-│   ├── api/                      # test_health, test_checkin, test_reminder, test_solutions
-│   ├── checkin/                  # test_engine
-│   └── training/                 # test_train
-├── docs/
-│   └── phase3-roadmap.md         # Roadmap phases 1–3 + Sprint 4
-├── .env.example
-└── render.yaml                   # One-click deploy Render
-```
-
----
-
-## Auteurs
-
-Projet réalisé dans le cadre du bootcamp **Data Science** à l'[Artefact School of Data](https://www.artefact.com/data-consulting-transformation/artefact-school-of-data/).
-
-- Fabrice Moncaut
-- Stanislas Grinchenko
-- Thomas
-- Aimen
+Sources : Assurance Maladie, témoignages MSP (Jade, Sarah, Bruno, Enzo), Journal de bien-être émotionnel pour ados, CLEF eRisk 2025.
