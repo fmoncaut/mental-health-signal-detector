@@ -7,6 +7,14 @@ from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
 from src.api.main import app
+from src.api.rate_limit import limiter
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Réinitialise le rate limiter entre chaque test (évite les 429 après ajout du @limiter.limit)."""
+    limiter._storage.reset()
+    yield
 
 
 @pytest.fixture

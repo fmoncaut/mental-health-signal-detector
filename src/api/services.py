@@ -46,12 +46,16 @@ def run_explain(request: ExplainRequest, model) -> ExplainResponse:
 
     # Garder uniquement les features présentes dans le texte
     nonzero_idx = np.where(tfidf_values > 0)[0]
-    top_idx = nonzero_idx[np.argsort(np.abs(contributions[nonzero_idx]))[::-1]][: request.n_features]
 
-    features = [
-        FeatureContribution(word=feature_names[i], shap_value=float(contributions[i]))
-        for i in top_idx
-    ]
+    if nonzero_idx.size == 0:
+        # Texte entièrement hors vocabulaire (stopwords seuls, ponctuation…)
+        features = []
+    else:
+        top_idx = nonzero_idx[np.argsort(np.abs(contributions[nonzero_idx]))[::-1]][: request.n_features]
+        features = [
+            FeatureContribution(word=feature_names[i], shap_value=float(contributions[i]))
+            for i in top_idx
+        ]
 
     proba = model.predict_proba([text_clean])[0]
     return ExplainResponse(

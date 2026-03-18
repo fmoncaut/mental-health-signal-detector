@@ -12,8 +12,10 @@ from src.common.config import get_settings
 from src.common.language import prepare_text
 from src.training.preprocess import clean_text
 
-# Répertoire de confiance pour les modèles — protège contre le path traversal
-_MODELS_DIR = Path("models").resolve()
+# Répertoire de confiance pour les modèles — protège contre le path traversal.
+# Utilise __file__ (indépendant du CWD au démarrage) pour pointer vers
+# <project_root>/models/, quel que soit le répertoire de lancement du process.
+_MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 
 
 def _safe_load_joblib(path: Path):

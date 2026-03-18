@@ -50,8 +50,13 @@ _settings = get_settings()
 # En prod : lire ALLOWED_ORIGINS depuis l'env (liste séparée par des virgules).
 #   Ex: ALLOWED_ORIGINS=https://monapp.vercel.app,https://www.mondomaine.com
 _raw_origins = _settings.allowed_origins
-if _settings.env == "development" or _raw_origins == "*":
+if _settings.env != "production":
+    # Dev, staging, ou env non configuré → origines ouvertes
     _ALLOWED_ORIGINS: list[str] | str = ["*"]
+elif _raw_origins == "*":
+    # Production avec ALLOWED_ORIGINS=* — alerte et accepte (choix explicite)
+    logger.warning("CORS: ALLOWED_ORIGINS=* en production — verrouiller les origines autorisées !")
+    _ALLOWED_ORIGINS = ["*"]
 else:
     _ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
@@ -136,8 +141,8 @@ def explain_endpoint(request: Request, request_body: ExplainRequest):
     except (FileNotFoundError, OSError) as e:
         logger.warning(f"Modèle indisponible (explain) : {e}")
         raise HTTPException(status_code=503, detail="Modèle non disponible — entraînement requis.")
-    except Exception as e:
-        logger.error(f"Erreur explain : {e}")
+    except Exception:
+        logger.exception("Erreur explain")
         raise HTTPException(status_code=500, detail="Erreur interne.")
 
 
@@ -152,6 +157,6 @@ def predict_endpoint(request: Request, body: PredictRequest):
     except (FileNotFoundError, OSError) as e:
         logger.warning(f"Modèle indisponible : {e}")
         raise HTTPException(status_code=503, detail="Modèle non disponible — entraînement requis.")
-    except Exception as e:
-        logger.error(f"Erreur prédiction : {e}")
+    except Exception:
+        logger.exception("Erreur prédiction")
         raise HTTPException(status_code=500, detail="Erreur interne.")

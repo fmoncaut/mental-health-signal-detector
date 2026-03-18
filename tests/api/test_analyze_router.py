@@ -17,10 +17,13 @@ from src.api.rate_limit import limiter
 
 
 @pytest.fixture(autouse=True)
-def reset_rate_limiter():
-    """Réinitialise le storage du rate limiter entre chaque test (évite les 429 en CI)."""
+def reset_state():
+    """Réinitialise le rate limiter et le singleton Anthropic entre chaque test."""
+    import src.api.analyze_router as _router
     limiter._storage.reset()
+    _router._anthropic_client = None  # force la recréation du client à chaque test
     yield
+    _router._anthropic_client = None
 
 
 @pytest.fixture

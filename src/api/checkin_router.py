@@ -73,7 +73,8 @@ def checkin_endpoint(request: Request, body: CheckInRequest):
 
 
 @router.post("/reminder", response_model=ReminderResponse)
-def reminder_endpoint(request: ReminderRequest) -> ReminderResponse:
+@limiter.limit("10/minute")
+def reminder_endpoint(request: Request, body: ReminderRequest) -> ReminderResponse:
     """
     Enregistre une intention de rappel de suivi.
 
@@ -82,17 +83,19 @@ def reminder_endpoint(request: ReminderRequest) -> ReminderResponse:
 
     Le store est en mémoire (FIFO, max 1000 entrées).
     Remplaçable par SQLite / Redis sans changer l'interface publique.
-    """
-    reminder = compute_reminder(offset=request.offset, mode=request.mode)
-    reminder["emotion_id"] = request.emotion_id
-    reminder["distress_level"] = request.distress_level
 
+    Données de santé (emotion_id, distress_level) : incluses dans la réponse
+    mais NON persistées dans le store (RGPD Art. 9 — données de catégorie
+    spéciale, pas d'authentification en place).
+    """
+    reminder = compute_reminder(offset=body.offset, mode=body.mode)
+    # Uniquement les métadonnées de planification — pas de données de santé
     _reminders.append(reminder)
 
     logger.info(
-        f"[reminder] id={reminder['id']} offset={request.offset} "
-        f"scheduled={reminder['scheduled_at']} mode={request.mode} "
-        f"emotion={request.emotion_id} distress={request.distress_level}"
+        f"[reminder] id={reminder['id']} offset={body.offset} "
+        f"scheduled={reminder['scheduled_at']} mode={body.mode}"
+        # emotion_id et distress_level volontairement exclus des logs (RGPD Art. 9)
     )
 
     return ReminderResponse(**reminder)
