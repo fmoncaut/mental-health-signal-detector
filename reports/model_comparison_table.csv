@@ -1,0 +1,8 @@
+,LR (33K),LR (21K),fine-tuned (21K)
+Recall (depressed),0.833,0.823,0.5
+Precision (depressed),0.869,0.865,0.584
+Accuracy,0.883,0.878,0.658
+Training data,33K,21K,21K
+Training time,8.7s,5.1s,Voir log entrainement
+Interpretable,Yes,Yes,No
+Inference speed,Very fast,Very fast,Slow
