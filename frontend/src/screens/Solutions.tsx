@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Heart, ArrowRight, Phone, ExternalLink, ChevronDown,
-  Sparkles, Shield, AlertTriangle, BookOpen, Wind, Users, HeartHandshake,
+  Sparkles, Shield, BookOpen, Wind, Users, HeartHandshake,
   Wind as BreathIcon, PenLine, MessageCircle, RotateCcw, Activity,
 } from "lucide-react";
 import { computeSolution } from "../lib/solutionEngine";
