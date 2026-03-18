@@ -217,6 +217,94 @@ export function deriveClinicalProfile(
   return "wellbeing";
 }
 
+// ─── Score self-report pondéré ───────────────────────────────────────────────
+// Duration et impact/énergie sont de meilleurs prédicteurs cliniques
+// que l'intensité seule — ils reflètent la chronicité et l'altération fonctionnelle.
+//
+// Pondération :  intensity × 1.0 · duration × 1.5 · impact/energy × 1.5
+// (aligné sur les critères DSM-5 : persistance + altération fonctionnelle > intensité subjective)
+export function computeSelfScore(answers: number[]): number {
+  if (!answers || answers.length === 0) return 0;
+  if (answers.length === 1) return answers[0] / 3;
+
+  const weights = [1.0, 1.5, 1.5];
+  let weighted = 0;
+  let maxWeighted = 0;
+  for (let i = 0; i < Math.min(answers.length, weights.length); i++) {
+    weighted    += answers[i] * weights[i];
+    maxWeighted += 3 * weights[i]; // valeur max par réponse = 3
+  }
+  return Math.min(1.0, weighted / maxWeighted);
+}
+
+// ─── Dimensions cliniques depuis le self-report ──────────────────────────────
+//
+// Les questions QuickCheck codent des signaux cliniques structurés :
+//   answers[0] = intensité     (0–3)
+//   answers[1] = durée         (0=auj. · 1=qqs jours · 2=>1 sem. · 3=plusieurs sem.)
+//   answers[2] = impact quotidien (sadness/fear/stress)
+//             OU niveau d'énergie (anger/tiredness)  (0–3)
+//
+// Logique clinique (références DSM-5 / ICD-11) :
+//   durée ≥ 2  = persistance → signal de chronicité (critère A de durée)
+//   impact ≥ 2 = altération fonctionnelle → critère B clinique
+//   énergie ≥ 2 = épuisement → axe burnout/dépression
+export function detectDimensionsFromSelfReport(
+  answers: number[],
+  emotionId: string,
+): ClinicalDimension[] {
+  if (!answers || answers.length < 2) return [];
+
+  const dims = new Set<ClinicalDimension>();
+  const intensity = answers[0] ?? 0;
+  const duration  = answers[1] ?? 0;
+  const third     = answers[2] ?? 0;
+
+  const isPersistent   = duration  >= 2; // > 1 semaine
+  const isIntense      = intensity >= 2; // fort ou très fort
+  const hasThirdSignal = third     >= 2; // impact ou énergie significatif
+
+  switch (emotionId) {
+    case "stress":
+      // Stress chronique (durée) → burnout ; persistant + intense → anxiété
+      if (isPersistent)              dims.add("burnout");
+      if (hasThirdSignal)            dims.add("burnout");   // impact fonctionnel
+      if (isIntense && isPersistent) dims.add("anxiety");
+      break;
+
+    case "tiredness":
+      // Fatigue persistante ou intense → burnout
+      if (isPersistent || isIntense) dims.add("burnout");
+      if (hasThirdSignal)            dims.add("burnout");   // énergie très basse
+      // Fatigue multi-semaines + énergie nulle → dépression masquée
+      if (duration >= 3 && third >= 2) dims.add("depression_masked");
+      break;
+
+    case "sadness":
+      // Tristesse persistante → dépression masquée (critère durée DSM-5)
+      if (isPersistent)  dims.add("depression_masked");
+      // Impact fonctionnel → dépression masquée confirmée
+      if (hasThirdSignal) dims.add("depression_masked");
+      break;
+
+    case "fear":
+      // Peur persistante → anxiété chronique
+      if (isPersistent)  dims.add("anxiety");
+      // Impact sur quotidien → anxiété clinique (critère B GAD-7)
+      if (hasThirdSignal) dims.add("anxiety");
+      break;
+
+    case "anger":
+      // Colère intense ET persistante → dysrégulation émotionnelle
+      if (isIntense && isPersistent)    dims.add("dysregulation");
+      // Énergie très basse + persistance → dysrégulation émotionnelle chronique
+      if (hasThirdSignal && isPersistent) dims.add("dysregulation");
+      break;
+  }
+
+  return Array.from(dims);
+}
+
 // ─── Pipeline complet ────────────────────────────────────────────────────────
 export function buildDiagnosticProfile(params: {
   emotionId: string;
@@ -227,9 +315,18 @@ export function buildDiagnosticProfile(params: {
   selfReportAnswers: number[] | null;
 }): DiagnosticProfile {
   const { emotionId, mode, userText, mlScore, selfScore, selfReportAnswers } = params;
-  const clinicalDimensions = detectClinicalDimensions(userText);
-  const distressLevel = getDistressLevel(mlScore, userText, emotionId, clinicalDimensions, selfScore);
-  const finalScore = mlScore !== null ? computeFinalScore(mlScore, emotionId, selfScore) : null;
+
+  const textDimensions       = detectClinicalDimensions(userText);
+  const selfReportDimensions = selfReportAnswers
+    ? detectDimensionsFromSelfReport(selfReportAnswers, emotionId)
+    : [];
+  // Merge dédupliqué — texte + self-report (les deux sources sont complémentaires)
+  const clinicalDimensions = [
+    ...new Set([...textDimensions, ...selfReportDimensions]),
+  ] as ClinicalDimension[];
+
+  const distressLevel  = getDistressLevel(mlScore, userText, emotionId, clinicalDimensions, selfScore);
+  const finalScore     = mlScore !== null ? computeFinalScore(mlScore, emotionId, selfScore) : null;
   const clinicalProfile = deriveClinicalProfile(distressLevel, emotionId, clinicalDimensions);
 
   return {

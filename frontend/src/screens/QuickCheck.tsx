@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
+import { computeSelfScore } from "../lib/scoringEngine";
 
 // ─── Émotions positives — bypass direct ──────────────────────────────────────
 
@@ -144,9 +145,9 @@ export default function QuickCheck() {
 
   const goToExpression = (allAnswers: number[]) => {
     if (!isMountedRef.current) return;
-    const selfScore = allAnswers.length > 0
-      ? allAnswers.reduce((s, v) => s + v, 0) / (allAnswers.length * 3)
-      : null;
+    // Pondération durée × 1.5 + impact/énergie × 1.5 > intensité × 1.0
+    // → persistance et altération fonctionnelle pèsent plus que l'intensité subjective
+    const selfScore = allAnswers.length > 0 ? computeSelfScore(allAnswers) : null;
     navigate("/expression", {
       state: { emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels, mode, selfScore, selfReportAnswers: allAnswers },
     });

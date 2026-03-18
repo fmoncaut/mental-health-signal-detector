@@ -21,6 +21,7 @@ import type { DiagnosticProfile } from "../types/diagnostic";
 import {
   sanitizeMlScore,
   detectClinicalDimensions,
+  detectDimensionsFromSelfReport,
   computeFinalScore,
   getDistressLevel,
   deriveClinicalProfile,
@@ -69,7 +70,14 @@ export default function SupportResponse() {
   if (!location.state) return null;
 
   // ─── Pipeline d'analyse clinique ────────────────────────────────────────
-  const clinicalDimensions = detectClinicalDimensions(userText);
+  const textDimensions       = detectClinicalDimensions(userText);
+  const selfReportDimensions = selfReportAnswers
+    ? detectDimensionsFromSelfReport(selfReportAnswers, emotionId)
+    : [];
+  // Merge dédupliqué — self-report enrichit les dimensions sans écraser le texte
+  const clinicalDimensions = [
+    ...new Set([...textDimensions, ...selfReportDimensions]),
+  ] as typeof textDimensions;
   const distressLevel = getDistressLevel(mlScore, userText, emotionId, clinicalDimensions, selfScore);
   const finalScore = mlScore !== null ? computeFinalScore(mlScore, emotionId, selfScore) : null;
   const clinicalProfile = deriveClinicalProfile(distressLevel, emotionId, clinicalDimensions);
