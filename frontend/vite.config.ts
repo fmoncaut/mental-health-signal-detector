@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
         '/predict': apiTarget,
         '/checkin': apiTarget,
         '/solutions': apiTarget,
+        '/analyze': apiTarget,
         '/health': apiTarget,
       },
     },

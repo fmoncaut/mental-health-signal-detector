@@ -13,6 +13,7 @@ from src.api.rate_limit import limiter
 from src.api.schemas import ExplainRequest, ExplainResponse, HealthResponse, PredictRequest, PredictResponse
 from src.api.checkin_router import router as checkin_router
 from src.api.solutions_router import router as solutions_router
+from src.api.analyze_router import router as analyze_router
 from src.common.config import get_settings
 
 # Imports ML optionnels — absents dans le déploiement slim (sans modèle)
@@ -104,6 +105,7 @@ app.add_middleware(RequestSizeLimitMiddleware)
 
 app.include_router(checkin_router)
 app.include_router(solutions_router)
+app.include_router(analyze_router)
 
 
 @app.get("/health", response_model=HealthResponse)

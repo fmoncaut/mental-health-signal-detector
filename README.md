@@ -106,7 +106,32 @@ finalScore = min(1.0, max(mlScore + maskingBonus, emotionFloor))
 
 ### Indicateur discret (mode adulte, niveaux 1-3)
 
-Panneau "Analyse" sur l'écran Solutions : points de triage, barre de score %, dimensions cliniques détectées (Épuisement / Anxiété / Humeur dépressive / Dysrégulation). Masqué en mode enfant et niveau 4.
+Panneau "Analyse" sur l'écran Solutions : points de triage, barre de score %, dimensions cliniques détectées (Épuisement / Anxiété / Humeur dépressive / Dysrégulation), tendance longitudinale (↓ amélioration / → stable / ↑ dégradation) vs session précédente. Masqué en mode enfant et niveau 4.
+
+### Self-report clinique (QuickCheck)
+
+3 micro-questions adaptatives (PHQ-9 / GAD-7 / PSS inspirées) selon l'émotion. Score DSM-5 pondéré : durée×1.5 + impact×1.5 > intensité×1.0. Les réponses sont mappées en dimensions cliniques (`detectDimensionsFromSelfReport`) et fusionnées avec l'analyse textuelle — sans perte d'information. Phase "bridge" empathique avant les questions (moins abrupt).
+
+### Suivi longitudinal
+
+`sessionHistory.ts` : historique localStorage 30 jours, 10 sessions max, déduplication 5 min. Tendance calculée sur les 2 dernières sessions, affichée dans le panneau Analyse (adulte) ou en message narratif (enfant).
+
+### Feedback micro-actions
+
+Boutons discrets (👍 / Pas vraiment) dans chaque ActionCard dépliée. Stockage local `mh_action_feedback` (50 entrées) — aucune transmission serveur.
+
+### Ressources avec liens web
+
+Champ `website?: string` optionnel sur les ressources : lien secondaire "Voir le site →" rendu dans ResourceCard. 5 ressources enrichies : Fil Santé Jeunes, 3018, 3020, 3919, Médecin traitant.
+
+### Accessibilité (WCAG 2.1 AA)
+
+- `role="group"` + `aria-label` sur grilles émotions et boutons rapides
+- `role="progressbar"` sur barre de progression QuickCheck
+- `role="radiogroup"` + `role="radio"` + `aria-label` sur options
+- `aria-pressed` sur boutons toggle, `aria-expanded` sur ActionCard
+- `aria-live="polite"` sur texte de phase respiration ("Inspirez/Expirez")
+- `aria-hidden="true"` sur tous les éléments décoratifs
 
 ### Sécurité applicative
 

@@ -290,7 +290,7 @@ export default function Solutions() {
     };
   }, []);
 
-  // Appel API en background — met à jour silencieusement (fondation LLM futur)
+  // Appel POST /solutions en background — met à jour silencieusement
   useEffect(() => {
     if (!diagnosticProfile) return;
     abortRef.current = new AbortController();
@@ -307,7 +307,6 @@ export default function Solutions() {
       })
       .then((data) => {
         if (!isMountedRef.current) return;
-        // Map therapeuticBrick vers chaque action (l'API n'expose pas brick par action)
         setSolution({
           ...data,
           microActions: data.microActions.map((a: MicroAction) => ({
@@ -320,6 +319,35 @@ export default function Solutions() {
         if (err instanceof DOMException && err.name === "AbortError") return;
         // Le moteur local est déjà affiché — rien à faire
       });
+  }, [diagnosticProfile]);
+
+  // Appel POST /analyze en background — remplace le message statique par un message LLM personnalisé
+  // Dégradation gracieuse : 503 (clé absente) ou erreur réseau → message local conservé
+  useEffect(() => {
+    if (!diagnosticProfile || !solution) return;
+    const abortLlm = new AbortController();
+
+    fetch(`${API_BASE}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(diagnosticProfile),
+      signal: abortLlm.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<{ message: string }>;
+      })
+      .then(({ message }) => {
+        if (!isMountedRef.current || !message) return;
+        setSolution((prev) => prev ? { ...prev, message } : prev);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // 503 ou erreur réseau → message local conservé — rien à faire
+      });
+
+    return () => abortLlm.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diagnosticProfile]);
 
   // Breathing timer — actif uniquement quand le panneau respiration est ouvert
