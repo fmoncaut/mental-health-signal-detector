@@ -54,3 +54,7 @@ artifacts/
 
 # Docker
 docker/.env
+# Frontend test artifacts
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/

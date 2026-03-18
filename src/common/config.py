@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Model
     model_name: str = "distilbert-base-uncased"
     model_path: str = "./models/fine_tuned"
+    model_path_v3: str = "./models/fine_tuned_v3"
 
     # Claude API — optionnel (POST /analyze)
     anthropic_api_key: str = ""

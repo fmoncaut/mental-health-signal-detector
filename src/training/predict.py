@@ -38,6 +38,12 @@ def load_model(model_type: str = "baseline"):
         model = AutoModelForSequenceClassification.from_pretrained(settings.model_path)
         model.eval()
         return {"tokenizer": tokenizer, "model": model}
+    elif model_type == "mental_bert_v3":
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        tokenizer = AutoTokenizer.from_pretrained(settings.model_path_v3)
+        model = AutoModelForSequenceClassification.from_pretrained(settings.model_path_v3)
+        model.eval()
+        return {"tokenizer": tokenizer, "model": model}
     else:
         raise ValueError(f"model_type inconnu : {model_type}")
 
@@ -70,8 +76,9 @@ def predict(text: str, model=None, model_type: str = "baseline") -> dict:
             padding=True,
             max_length=128,
         )
-        # DistilBERT ne supporte pas token_type_ids
-        inputs.pop("token_type_ids", None)
+        # DistilBERT ne supporte pas token_type_ids ; BERT (mental_bert_v3) les utilise
+        if model_type == "distilbert":
+            inputs.pop("token_type_ids", None)
         with torch.no_grad():
             logits = bert(**inputs).logits
         proba = torch.softmax(logits, dim=-1)[0].tolist()
