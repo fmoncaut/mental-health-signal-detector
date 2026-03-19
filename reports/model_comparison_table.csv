@@ -1,8 +1,8 @@
-,LR (33K),LR (21K),fine-tuned (21K)
-Recall (depressed),0.833,0.823,0.5
-Precision (depressed),0.869,0.865,0.584
-Accuracy,0.883,0.878,0.658
-Training data,33K,21K,21K
-Training time,8.7s,5.1s,Voir log entrainement
-Interpretable,Yes,Yes,No
-Inference speed,Very fast,Very fast,Slow
+,LR (254K),LR (21K),fine-tuned (21K),mental-bert-v3 (21K)
+Recall (depressed),0.728,0.666,0.312,0.394
+Precision (depressed),0.685,0.666,0.421,0.645
+Accuracy,0.782,0.76,0.599,0.705
+Training data,254K,21K,21K,21K
+Training time,77.7s,11.5s,Voir log entrainement,Voir log entrainement
+Interpretable,Yes,Yes,No,No
+Inference speed,Very fast,Very fast,Slow,Slow
