@@ -151,7 +151,7 @@ def predict(text: str, model=None, model_type: str = "baseline") -> dict:
         with torch.no_grad():
             logits = bert(**inputs).logits
         proba = torch.softmax(logits, dim=-1)[0].tolist()
-        label = int(proba[1] > 0.5)
+        label = int(proba[1] > 0.65)   # seuil relevé à 0.65 : corrige la sur-prédiction classe 1
         score = float(proba[1])
 
     logger.debug(f"Prédiction [{model_type}] lang={detected_lang} → label={label}, score={score:.3f}")

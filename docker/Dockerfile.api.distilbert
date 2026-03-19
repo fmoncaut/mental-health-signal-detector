@@ -1,0 +1,41 @@
+# Dockerfile.api.distilbert — DistilBERT v2
+#
+# Prérequis Render :
+#   - plan: starter ($7/mois min, 512 Mo RAM)
+#   - Env vars dans le dashboard Render :
+#       HF_REPO_ID = TON_USERNAME/mh-distilbert-v2
+#       HF_TOKEN   = hf_xxxxxxxxxxxx  (token privé HuggingFace)
+#
+# Le modèle (~256 Mo) est téléchargé au premier démarrage depuis HF Hub.
+# Les démarrages suivants réutilisent le modèle en cache (Render persistent disk).
+#
+# Pour préparer le modèle :
+#   python scripts/push_model_to_hf.py --repo TON_USERNAME/mh-distilbert-v2
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/lists/*
+
+COPY docker/requirements.distilbert.txt .
+RUN pip install --no-cache-dir -r requirements.distilbert.txt
+
+COPY src/ ./src/
+COPY configs/ ./configs/
+COPY models/baseline.joblib ./models/
+COPY docker/entrypoint.distilbert.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+ENV PYTHONPATH=/app
+ENV PORT=8000
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+CMD ["./entrypoint.sh"]

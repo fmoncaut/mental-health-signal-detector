@@ -1,0 +1,32 @@
+# Dépendances API DistilBERT v2 — Render Starter ($7/mois minimum)
+# Image finale ~1.5 Go (torch CPU + transformers + modèle 268 Mo)
+
+# API
+fastapi>=0.115.0
+starlette>=0.47.2
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+pydantic-settings==2.2.1
+slowapi>=0.1.9
+
+# Claude API
+anthropic>=0.40.0
+
+# Utils
+python-dotenv==1.0.1
+pyyaml==6.0.1
+loguru==0.7.2
+
+# ML baseline (toujours disponible comme fallback)
+scikit-learn>=1.5.0
+joblib>=1.4.0
+numpy>=1.26.0
+
+# ML DistilBERT
+torch==2.3.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+transformers==4.41.2
+safetensors>=0.4.3
+
+# Langue
+langdetect==1.0.9
+deep-translator==1.11.4

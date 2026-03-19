@@ -11,7 +11,7 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: ALLOWED_ORIGINS
-        sync: false   # à remplir dans le dashboard Render : URL Vercel de ton frontend
+        sync: false   # URL Vercel du frontend
       - key: PORT
         value: "8000"
     healthCheckPath: /health
