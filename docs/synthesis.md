@@ -207,9 +207,20 @@ mental-health-signal-detector/
 
 ## 8. Roadmap et perspectives
 
+### Rapport d'interprétabilité SHAP (2026-03-19)
+
+Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportées dans `reports/` :
+
+- **`shap_top_words_global.png`** — Top 20 mots les plus influents du modèle baseline (rouge = pousse vers détresse, bleu = pousse vers non-détresse). Basé sur les coefficients LR × TF-IDF.
+- **`shap_per_text.png`** — Analyse mot à mot sur des textes exemples, avec le score de détresse associé.
+
+**Version non-tech :** Ce rapport montre quels mots font "sonner l'alarme" du modèle (ex: "hopeless", "die", "ignored") vs ceux qui rassurent (ex: "teacher", "class", "project"). C'est un outil pédagogique pour expliquer les décisions du modèle à des non-spécialistes.
+
+---
+
 ### Ce qui est observable dans le code
 
-- **DistilBERT v2** ✅ déployé en production (Accuracy 88.4%, F1 Macro 85.9%, seuil 0.65) — entraîné sur 246K exemples dont eRisk25 clinique
+- **DistilBERT v2** ✅ validé (Accuracy 88.4%, F1 Macro 85.9%, seuil 0.65) — disponible sur HuggingFace Hub (`FabriceM/mh-distilbert-v2`), Dockerfile prêt pour Render Starter
 - **Mental-BERT v3** (Accuracy 92.7%, AUC-ROC 98.2%) prêt mais réservé aux déploiements GPU — prochain candidat production
 - Infrastructure Docker complète pour déploiement avec modèles en volume
 - Endpoint `/analyze` (Claude Haiku) : fondation pour personnalisation LLM plus poussée
