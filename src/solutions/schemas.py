@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ─── Types de base ────────────────────────────────────────────────────────────
 
@@ -40,6 +40,13 @@ class DiagnosticProfileRequest(BaseModel):
     # Self-report (QuickCheck — null si émotion positive ou étape passée)
     selfScore: float | None = Field(None, ge=0.0, le=1.0)
     selfReportAnswers: list[int] | None = None
+
+    @field_validator("selfReportAnswers")
+    @classmethod
+    def validate_self_report_range(cls, v: list[int] | None) -> list[int] | None:
+        if v is not None and any(x < 0 or x > 3 for x in v):
+            raise ValueError("Chaque réponse du self-report doit être entre 0 et 3.")
+        return v
 
     # ML
     mlScore: float | None = Field(None, ge=0.0, le=1.0)

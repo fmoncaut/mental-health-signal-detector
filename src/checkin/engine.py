@@ -13,7 +13,6 @@ from enum import Enum
 from loguru import logger
 
 from src.checkin.content import (
-    CRITICAL_KEYWORDS,
     CRITICAL_RESPONSES,
     EMOJI_SCORES,
     GREEN_RESPONSES,
@@ -30,6 +29,7 @@ from src.checkin.content import (
     YELLOW_TIPS,
     get_greeting,
 )
+from src.common.safety import check_critical, normalize_text
 
 
 class DistressLevel(str, Enum):
@@ -49,32 +49,8 @@ EMOJI_FLOOR: dict[str, DistressLevel] = {
 }
 
 
-def _normalize(s: str) -> str:
-    """Normalise pour la detection : minuscules, suppression accents + apostrophes variantes.
-    Garantit que 'j'ai envie de mourir' = 'jai envie de mourir' = 'J'AI ENVIE DE MOURIR'
-    et que 'disparaître' = 'disparaitre'.
-    """
-    import unicodedata
-    lower = s.lower()
-    no_accent = unicodedata.normalize("NFD", lower)
-    no_accent = "".join(c for c in no_accent if unicodedata.category(c) != "Mn")
-    return no_accent.replace("\u2019", "").replace("\u2018", "").replace("'", "").replace("'", "").replace("`", "")
-
-
-# Pre-normalisation des mots-cles pour correspondance robuste
-_CRITICAL_KEYWORDS_NORMALIZED = [_normalize(kw) for kw in CRITICAL_KEYWORDS]
-
-
-def check_critical(text: str | None) -> bool:
-    """
-    Detecte l'ideation suicidaire par mots-cles.
-    Appelee AVANT tout scoring NLP/emoji — securite absolue.
-    Normalise le texte ET les mots-cles (apostrophes, casse) pour maximiser la detection.
-    """
-    if not text:
-        return False
-    normalized = _normalize(text)
-    return any(kw in normalized for kw in _CRITICAL_KEYWORDS_NORMALIZED)
+# _normalize → normalize_text (src.common.safety)
+# check_critical → importé depuis src.common.safety
 
 
 def apply_intensity_boost(text: str | None, score: float) -> float:
@@ -84,7 +60,7 @@ def apply_intensity_boost(text: str | None, score: float) -> float:
     """
     if not text:
         return score
-    normalized = text.lower()
+    normalized = normalize_text(text)
     if any(mod in normalized for mod in INTENSITY_MODIFIERS):
         boosted = min(score + INTENSITY_SCORE_BOOST, 1.0)
         logger.debug(f"Intensity boost applique : {score:.3f} -> {boosted:.3f}")

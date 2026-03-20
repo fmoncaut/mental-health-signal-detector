@@ -30,13 +30,17 @@ except ImportError:
 
 # Client Anthropic singleton — une seule instance par processus, pool de connexions réutilisé.
 # Réinitialisé uniquement au redémarrage si la clé change.
+import threading
 _anthropic_client: "anthropic.Anthropic | None" = None  # type: ignore[name-defined]
+_anthropic_lock = threading.Lock()
 
 
 def _get_anthropic_client(api_key: str) -> "anthropic.Anthropic":  # type: ignore[name-defined]
     global _anthropic_client
     if _anthropic_client is None:
-        _anthropic_client = anthropic.Anthropic(api_key=api_key)
+        with _anthropic_lock:
+            if _anthropic_client is None:
+                _anthropic_client = anthropic.Anthropic(api_key=api_key)
     return _anthropic_client
 
 

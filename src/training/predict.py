@@ -10,6 +10,7 @@ from loguru import logger
 
 from src.common.config import get_settings
 from src.common.language import prepare_text
+from src.common.safety import check_critical
 from src.training.preprocess import clean_text
 
 # Répertoire de confiance pour les modèles — protège contre le path traversal.
@@ -90,33 +91,7 @@ def load_model(model_type: str = "baseline"):
         raise ValueError(f"model_type inconnu : {model_type}")
 
 
-# Mots-clés d'idéation suicidaire — détectés AVANT le ML, indépendant de la langue.
-# Filet de sécurité absolu : retourne score 1.0 sans passer par le modèle.
-_CRITICAL_KEYWORDS = [
-    # FR
-    "me tuer", "me suicider", "en finir", "mourir", "je veux mourir",
-    "je ne veux plus vivre", "plus envie de vivre", "me supprimer",
-    "je suis un fardeau", "à quoi bon vivre",
-    # EN — direct
-    "kill myself", "i want to kill myself", "want to kill myself",
-    "wanna kill myself", "end my life", "want to end my life",
-    "take my life", "i want to die", "i wanna die", "wanna die",
-    "hurt myself", "want to hurt myself", "cut myself",
-    # EN — indirect
-    "no reason to live", "better off without me", "can't go on anymore",
-    "no point in living", "don't want to be here anymore",
-]
-
-
-def _check_critical(text: str) -> bool:
-    """Détecte l'idéation suicidaire par mots-clés, avant tout scoring ML.
-    Normalise accents + apostrophes pour couvrir toutes les variantes de saisie.
-    """
-    import unicodedata
-    lower = unicodedata.normalize("NFD", text.lower())
-    lower = "".join(c for c in lower if unicodedata.category(c) != "Mn")
-    lower = lower.replace("\u2019", "").replace("'", "").replace("'", "").replace("`", "")
-    return any(kw in lower for kw in _CRITICAL_KEYWORDS)
+# check_critical importé depuis src.common.safety — source de vérité unique.
 
 
 def predict(text: str, model=None, model_type: str = "baseline") -> dict:
@@ -152,7 +127,7 @@ def predict(text: str, model=None, model_type: str = "baseline") -> dict:
             provided (propagated from :func:`load_model`).
     """
     # Filet de sécurité absolu — priorité sur tout scoring ML
-    if _check_critical(text):
+    if check_critical(text):
         import hashlib
         text_hash = hashlib.sha256(text.encode()).hexdigest()[:12]
         logger.warning(f"CRITICAL détecté avant ML — hash={text_hash}")

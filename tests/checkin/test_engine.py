@@ -6,7 +6,8 @@ Couvre le plancher de sécurité EMOJI_FLOOR :
 - 😔 (tristesse) → jamais en dessous de YELLOW, même si le score NLP est vert
 - Emojis neutres/positifs → niveau determiné par le score uniquement
 """
-from src.checkin.engine import compute_score, get_level, build_response, DistressLevel
+from src.checkin.engine import compute_score, get_level, build_response, DistressLevel, apply_intensity_boost
+from src.common.safety import check_critical
 
 
 # ---------------------------------------------------------------------------
@@ -100,3 +101,55 @@ def test_build_response_yellow_step1_has_followup():
 def test_build_response_step2_no_followup():
     resp = build_response(emoji="😐", text=None, text_score=0.50, step=2)
     assert resp["follow_up"] is None
+
+
+# ---------------------------------------------------------------------------
+# check_critical — priorité absolue dans build_response
+# ---------------------------------------------------------------------------
+
+def test_build_response_critical_keyword_overrides_emoji():
+    """Un mot-clé critique doit produire CRITICAL même avec un emoji positif."""
+    resp = build_response(emoji="😄", text="I want to kill myself", text_score=0.0)
+    assert resp["level"] == DistressLevel.CRITICAL
+    assert resp["critical"] is True
+    assert resp["score"] == 1.0
+
+
+def test_build_response_critical_fr_accent():
+    """Idéation suicidaire avec accents doit être détectée."""
+    resp = build_response(emoji="😄", text="j'ai envie de mourir", text_score=0.0)
+    assert resp["level"] == DistressLevel.CRITICAL
+
+
+def test_build_response_critical_has_resources():
+    """Niveau CRITICAL doit toujours inclure des ressources d'urgence."""
+    resp = build_response(emoji=None, text="je veux me suicider", text_score=None)
+    assert resp["level"] == DistressLevel.CRITICAL
+    assert len(resp["resources"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# apply_intensity_boost — normalisation accents
+# ---------------------------------------------------------------------------
+
+def test_intensity_boost_fr_with_accent():
+    """Les modificateurs avec accents doivent être détectés via normalize_text."""
+    score = apply_intensity_boost("je suis épuisé depuis des semaines", 0.40)
+    assert score > 0.40
+
+
+def test_intensity_boost_en():
+    score = apply_intensity_boost("I feel terrible all the time", 0.30)
+    assert score > 0.30
+
+
+def test_intensity_boost_no_modifier():
+    assert apply_intensity_boost("je me sens triste", 0.40) == 0.40
+
+
+def test_intensity_boost_caps_at_one():
+    assert apply_intensity_boost("tout le temps", 0.95) == 1.0
+
+
+def test_intensity_boost_none_text():
+    assert apply_intensity_boost(None, 0.50) == 0.50

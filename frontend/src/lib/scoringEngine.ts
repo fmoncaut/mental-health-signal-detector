@@ -160,6 +160,13 @@ export const DIMENSION_KEYWORDS: Record<ClinicalDimension, string[]> = {
   ],
 };
 
+// Pré-normalisés à l'import pour comparaison robuste (sans accents ni apostrophes)
+const _DIMENSION_KEYWORDS_NORMALIZED: Record<ClinicalDimension, string[]> = Object.fromEntries(
+  (Object.keys(DIMENSION_KEYWORDS) as ClinicalDimension[]).map(
+    (dim) => [dim, DIMENSION_KEYWORDS[dim].map(normalizeText)]
+  )
+) as Record<ClinicalDimension, string[]>;
+
 // ─── Sanitisation du score ML ────────────────────────────────────────────────
 export function sanitizeMlScore(raw: unknown): number | null {
   if (typeof raw !== "number" || !isFinite(raw)) return null;
@@ -168,9 +175,9 @@ export function sanitizeMlScore(raw: unknown): number | null {
 
 // ─── Détection de dimensions cliniques ──────────────────────────────────────
 export function detectClinicalDimensions(text: string): ClinicalDimension[] {
-  const lower = text.toLowerCase();
-  return (Object.keys(DIMENSION_KEYWORDS) as ClinicalDimension[]).filter(
-    (dim) => DIMENSION_KEYWORDS[dim].some((kw) => lower.includes(kw))
+  const normalized = normalizeText(text);
+  return (Object.keys(_DIMENSION_KEYWORDS_NORMALIZED) as ClinicalDimension[]).filter(
+    (dim) => _DIMENSION_KEYWORDS_NORMALIZED[dim].some((kw) => normalized.includes(kw))
   );
 }
 

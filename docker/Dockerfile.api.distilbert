@@ -19,7 +19,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     curl \
-    && rm -rf /var/lib/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 COPY docker/requirements.distilbert.txt .
 RUN pip install --no-cache-dir -r requirements.distilbert.txt

@@ -223,6 +223,7 @@ export default function Expression() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={isLoading}
+            maxLength={5000}
             placeholder={
               mode === "kids"
                 ? "Écris ce que tu ressens ici... Ce qui s'est passé, ce qui te tracasse, ou juste ce que tu penses."

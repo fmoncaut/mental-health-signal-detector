@@ -28,31 +28,12 @@ EMOJI_LABELS: dict[str, str] = {
     "😢": "Vraiment pas bien",
 }
 
-# AXE 5 - RISQUE CRITIQUE : détectés AVANT tout scoring
-CRITICAL_KEYWORDS_FR = [
-    "je veux mourir", "envie de mourir", "j'ai envie de mourir",
-    "je veux en finir", "en finir avec tout", "en finir avec la vie",
-    "je ne veux plus vivre", "plus envie de vivre", "je veux disparaitre",
-    "me suicider", "suicide", "me tuer", "me faire du mal",
-    "ca serait mieux sans moi", "tout irait mieux sans moi",
-    "plus de raison de vivre", "aucune raison de vivre",
-    "je ne sers a rien a personne", "tout le monde serait mieux sans moi",
-    "plus de raison de continuer", "je ne veux plus etre la",
-    "si je disparaissais personne s'en apercevrait",
-    "j'ai besoin de disparaitre",
-]
-
-CRITICAL_KEYWORDS_EN = [
-    "i want to die", "want to die", "i want to end it",
-    "i dont want to live", "dont want to live", "i want to disappear",
-    "kill myself", "suicide", "suicidal", "hurt myself", "end my life",
-    "take my life", "no reason to live", "no point living",
-    "better off without me", "everyone would be better without me",
-    "world would be better without me", "no one would miss me",
-    "cant go on", "nothing to live for",
-]
-
-CRITICAL_KEYWORDS = CRITICAL_KEYWORDS_FR + CRITICAL_KEYWORDS_EN
+# AXE 5 - RISQUE CRITIQUE : importés depuis src.common.safety — source de vérité unique.
+from src.common.safety import (
+    CRITICAL_KEYWORDS,
+    CRITICAL_KEYWORDS_EN,
+    CRITICAL_KEYWORDS_FR,
+)
 
 # Modificateurs intensite/frequence — boostent le score
 INTENSITY_MODIFIERS_FR = [

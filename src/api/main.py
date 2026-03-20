@@ -85,7 +85,11 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Rejet rapide sur Content-Length déclaré (évite de lire inutilement)
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > _MAX_REQUEST_BODY:
+        try:
+            parsed_length = int(content_length) if content_length else 0
+        except ValueError:
+            parsed_length = 0
+        if parsed_length > _MAX_REQUEST_BODY:
             return JSONResponse(
                 status_code=413,
                 content={"detail": f"Corps de requête trop grand (max {_MAX_REQUEST_BODY // 1024} KB)."},
@@ -100,6 +104,17 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Ajoute les en-têtes de sécurité HTTP à chaque réponse."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
@@ -107,6 +122,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.add_middleware(RequestSizeLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(checkin_router)
 app.include_router(solutions_router)

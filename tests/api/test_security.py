@@ -358,15 +358,18 @@ class TestClientIpExtraction:
         req.client.host = "127.0.0.1"
         return req
 
-    def test_uses_first_ip_from_forwarded_for(self):
+    def test_uses_last_ip_from_forwarded_for(self):
+        """Prend la DERNIÈRE IP — celle ajoutée par le proxy de confiance (Render).
+        La première IP est contrôlée par le client et peut être forgée.
+        """
         from src.api.rate_limit import _get_client_ip
         req = self._make_request({"X-Forwarded-For": "1.2.3.4, 10.0.0.1, 172.16.0.1"})
-        assert _get_client_ip(req) == "1.2.3.4"
+        assert _get_client_ip(req) == "172.16.0.1"
 
     def test_strips_whitespace(self):
         from src.api.rate_limit import _get_client_ip
-        req = self._make_request({"X-Forwarded-For": "  5.6.7.8  , 10.0.0.1"})
-        assert _get_client_ip(req) == "5.6.7.8"
+        req = self._make_request({"X-Forwarded-For": "5.6.7.8,  10.0.0.1  "})
+        assert _get_client_ip(req) == "10.0.0.1"
 
     def test_falls_back_to_socket_ip_when_header_absent(self):
         from src.api.rate_limit import _get_client_ip

@@ -22,7 +22,7 @@ class ResourceItem(BaseModel):
     title: str
     description: str
     action: str
-    url: str
+    url: str | None = None
 
 
 class CheckInResponse(BaseModel):
