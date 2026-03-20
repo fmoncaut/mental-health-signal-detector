@@ -1,8 +1,10 @@
-,LR (254K),LR (21K),fine-tuned (21K),mental-bert-v3 (21K)
-Recall (depressed),0.728,0.666,0.312,0.394
-Precision (depressed),0.685,0.666,0.421,0.645
-Accuracy,0.782,0.76,0.599,0.705
-Training data,254K,21K,21K,21K
-Training time,77.7s,11.5s,Voir log entrainement,Voir log entrainement
-Interpretable,Yes,Yes,No,No
-Inference speed,Very fast,Very fast,Slow,Slow
+,LR Fabrice (388K),DistilBERT v2 Fabrice (246K),Mental-BERT v3 Fabrice (99K),LR Stan (1.7M),DistilBERT Stan (21K),MentalRoBERTa Stan (21K)
+Recall (depressed),0.73,0.85,0.959,0.93,0.93,0.94
+Precision (depressed),—,—,—,0.80,0.75,0.84
+F1 (depressed),—,—,—,—,0.83,0.89
+F1 Macro,—,0.859,0.925,—,—,—
+Accuracy,0.78,0.884,0.927,0.94,0.92,0.95
+Training data,388K,246K,99K,1.7M,21K,21K
+Interpretable,Yes,No,No,Yes,No,No
+Inference speed,Very fast,Slow (~3-5s),Slow (GPU req.),Very fast,Slow,Slow
+Deployment,Render free,Render Starter,GPU required,—,—,—

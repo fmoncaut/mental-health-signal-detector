@@ -304,14 +304,36 @@ mental-health-signal-detector/
 
 ### Modèles comparés — résultats mesurés
 
+#### Équipe Fabrice
+
 | Modèle | Dataset entraînement | Accuracy | F1 Macro | Recall détresse | Statut |
 |---|---|---|---|---|---|
 | TF-IDF + LR | Kaggle 254K | 78% | — | 73% | Ancienne prod |
 | DistilBERT v1 | Kaggle 100K | 60% | — | 31% | Écarté (distribution shift) |
 | **DistilBERT v2** *(prod)* | **Kaggle + DAIR-AI + GoEmotions + eRisk25 (246K)** | **88.4%** | **85.9%** | **~85%\*** | **✅ Déployé** |
-| Mental-BERT v3 | — | 92.7% | — | 95.9% | GPU requis |
+| Mental-BERT v3 | Reddit Depression 99K | 92.7% | 92.5% | **95.9%** | GPU requis |
 
 *\* Recall estimé sur validation set mixte. Seuil de décision ajusté à 0.65 (voir section 6).*
+
+#### Équipe Stanislas — comparaison croisée
+
+| Modèle | Dataset entraînement | Accuracy | F1 (déprimé) | Recall détresse | Precision |
+|---|---|---|---|---|---|
+| TF-IDF + LR | 1.7M | 0.94 | — | 0.93 | 0.80 |
+| DistilBERT | 21K | 0.92 | 0.83 | 0.93 | 0.75 |
+| **MentalRoBERTa** | **21K** | **0.95** | **0.89** | **0.94** | **0.84** |
+
+#### Analyse croisée
+
+| Critère | Fabrice | Stanislas |
+|---|---|---|
+| Meilleur recall (priorité clinique) | **Mental-BERT v3 : 95.9%** | MentalRoBERTa : 94% |
+| Meilleure accuracy | Mental-BERT v3 : 92.7% | **MentalRoBERTa : 95%** |
+| Modèle prod | DistilBERT v2 CPU (88.4%) | LR 1.7M (94%) |
+| Stratégie dataset | Grands volumes (246K–1.7M) | Dataset clinique concentré (21K) |
+| Conclusion | Recall prioritaire → cliniquement supérieur | Accuracy supérieure, dataset minimal |
+
+> Les deux approches convergent : deux stratégies différentes (volume vs. qualité clinique) aboutissent à des performances comparables, ce qui valide la robustesse de l'approche globale.
 
 **TF-IDF** (Term Frequency-Inverse Document Frequency) est une méthode statistique qui mesure l'importance des mots. **Transformer / BERT** sont des architectures de deep learning qui comprennent le contexte et les nuances du langage.
 
