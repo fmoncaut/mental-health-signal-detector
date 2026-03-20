@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.main import app
+from src.common.config import Settings
 
 client = TestClient(app)
 
@@ -16,6 +17,9 @@ VALID_PAYLOAD = {
     "score_ml": 0.72,
     "consent": True,
 }
+
+_SETTINGS_NO_SUPABASE = Settings(supabase_url="", supabase_service_key="")
+_SETTINGS_WITH_SUPABASE = Settings(supabase_url="https://example.supabase.co", supabase_service_key="fake-key")
 
 
 class TestFeedbackValidation:
@@ -56,8 +60,7 @@ class TestFeedbackValidation:
     def test_score_ml_none_accepted(self):
         """score_ml est optionnel (fallback sans ML)."""
         payload = {**VALID_PAYLOAD, "score_ml": None}
-        with patch("src.api.feedback_router._SUPABASE_URL", ""), \
-             patch("src.api.feedback_router._SUPABASE_KEY", ""):
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_NO_SUPABASE):
             res = client.post("/feedback", json=payload)
         assert res.status_code == 204
 
@@ -65,8 +68,7 @@ class TestFeedbackValidation:
         emotions = ["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"]
         for emotion in emotions:
             payload = {**VALID_PAYLOAD, "emotion": emotion}
-            with patch("src.api.feedback_router._SUPABASE_URL", ""), \
-                 patch("src.api.feedback_router._SUPABASE_KEY", ""):
+            with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_NO_SUPABASE):
                 res = client.post("/feedback", json=payload)
             assert res.status_code == 204, f"emotion={emotion} should be accepted"
 
@@ -75,14 +77,12 @@ class TestFeedbackNoSupabase:
     """Dégradation gracieuse si Supabase n'est pas configuré."""
 
     def test_returns_204_when_supabase_not_configured(self):
-        with patch("src.api.feedback_router._SUPABASE_URL", ""), \
-             patch("src.api.feedback_router._SUPABASE_KEY", ""):
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_NO_SUPABASE):
             res = client.post("/feedback", json=VALID_PAYLOAD)
         assert res.status_code == 204
 
     def test_returns_204_when_httpx_unavailable(self):
-        with patch("src.api.feedback_router._SUPABASE_URL", "https://example.supabase.co"), \
-             patch("src.api.feedback_router._SUPABASE_KEY", "fake-key"), \
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE), \
              patch("src.api.feedback_router._HTTPX_AVAILABLE", False):
             res = client.post("/feedback", json=VALID_PAYLOAD)
         assert res.status_code == 204
@@ -100,8 +100,7 @@ class TestFeedbackSupabaseIntegration:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_response)
 
-        with patch("src.api.feedback_router._SUPABASE_URL", "https://example.supabase.co"), \
-             patch("src.api.feedback_router._SUPABASE_KEY", "fake-key"), \
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE), \
              patch("src.api.feedback_router._HTTPX_AVAILABLE", True), \
              patch("httpx.AsyncClient", return_value=mock_client):
             res = client.post("/feedback", json=VALID_PAYLOAD)
@@ -122,8 +121,7 @@ class TestFeedbackSupabaseIntegration:
             side_effect=httpx.HTTPStatusError("error", request=MagicMock(), response=mock_response)
         )
 
-        with patch("src.api.feedback_router._SUPABASE_URL", "https://example.supabase.co"), \
-             patch("src.api.feedback_router._SUPABASE_KEY", "fake-key"), \
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE), \
              patch("src.api.feedback_router._HTTPX_AVAILABLE", True), \
              patch("httpx.AsyncClient", return_value=mock_client):
             res = client.post("/feedback", json=VALID_PAYLOAD)
@@ -140,8 +138,7 @@ class TestFeedbackSupabaseIntegration:
             side_effect=httpx.ConnectError("Connection refused")
         )
 
-        with patch("src.api.feedback_router._SUPABASE_URL", "https://example.supabase.co"), \
-             patch("src.api.feedback_router._SUPABASE_KEY", "fake-key"), \
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE), \
              patch("src.api.feedback_router._HTTPX_AVAILABLE", True), \
              patch("httpx.AsyncClient", return_value=mock_client):
             res = client.post("/feedback", json=VALID_PAYLOAD)

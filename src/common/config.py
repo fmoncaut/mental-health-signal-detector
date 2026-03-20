@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # Claude API — optionnel (POST /analyze)
     anthropic_api_key: str = ""
 
+    # Supabase — collecte anonyme opt-in (POST /feedback)
+    supabase_url: str = ""
+    supabase_service_key: str = ""
+
     # App
     env: str = "development"
     log_level: str = "INFO"

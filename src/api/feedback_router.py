@@ -14,8 +14,6 @@ Variables d'environnement requises :
 
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,11 +24,11 @@ except ImportError:
     _HTTPX_AVAILABLE = False
 
 from loguru import logger
+from src.common.config import get_settings
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
-_SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-_SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+_TABLE = "anonymous_feedback"
 _TABLE = "anonymous_feedback"
 
 
@@ -66,7 +64,11 @@ async def save_feedback(payload: FeedbackPayload) -> None:
     Retourne 204 No Content en cas de succès.
     Retourne 503 si Supabase est indisponible — ne bloque pas l'expérience utilisateur.
     """
-    if not _SUPABASE_URL or not _SUPABASE_KEY:
+    settings = get_settings()
+    supabase_url = settings.supabase_url
+    supabase_key = settings.supabase_service_key
+
+    if not supabase_url or not supabase_key:
         logger.warning("Supabase non configuré (SUPABASE_URL/SUPABASE_SERVICE_KEY manquants) — feedback ignoré")
         return  # Dégradation gracieuse : pas d'erreur côté utilisateur
 
@@ -84,10 +86,10 @@ async def save_feedback(payload: FeedbackPayload) -> None:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
-                f"{_SUPABASE_URL}/rest/v1/{_TABLE}",
+                f"{supabase_url}/rest/v1/{_TABLE}",
                 headers={
-                    "apikey": _SUPABASE_KEY,
-                    "Authorization": f"Bearer {_SUPABASE_KEY}",
+                    "apikey": supabase_key,
+                    "Authorization": f"Bearer {supabase_key}",
                     "Content-Type": "application/json",
                     "Prefer": "return=minimal",
                 },
