@@ -42,6 +42,14 @@ PHASE 6 — Code Review + Consolidation         (semaine 4-5)
   ├── Source de vérité unique : src/common/safety.py
   ├── Normalisation UTF-8 accents + apostrophes FR/EN unifiée
   └── Mental-BERT v3 (Accuracy 92.7%, Recall 95.9%) — prêt, GPU requis
+
+PHASE 7 — Renforcement clinique + UX          (semaine 5)
+  ├── Analyse causale : "I want to kill me" (typo) → non détecté → CRITICAL manqué
+  ├── +17 mots-clés : variantes typo + idéation voilée sévérité 4-5 (lexique crise)
+  ├── Seuil masquage émotion positive : 0.25 → 0.15 (textes courts mieux couverts)
+  ├── UX nudge texte court (<30 chars) au-dessus du textarea avec animation
+  ├── Textarea : 320px → 180px — CTA toujours visible sans scroll
+  └── 167 tests (+ 17 nouveaux cas de détection critiques)
 ```
 
 ---
@@ -417,7 +425,7 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 
 ### Posture technique actuelle
 
-**150 tests pytest** (+ 33 nouveaux ce sprint) + 180 Vitest + 18 Playwright = **348 tests automatisés**, CI GitHub Actions, 4 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
+**167 tests pytest** + 180 Vitest + 18 Playwright = **365 tests automatisés**, CI GitHub Actions, 4 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
 
 ---
 
@@ -619,10 +627,21 @@ Audit complet 6 phases (Python + TypeScript). 15 correctifs appliqués, 150/150 
 - `solutions/schemas.py` : validateur `selfReportAnswers` valeurs ∈ [0, 3] (C10)
 - `analyze_router.py` : singleton Anthropic thread-safe (double-check locking) (C12)
 - `Expression.tsx` : `maxLength={5000}` sur le textarea (C13)
+
+### Phase 7 — Renforcement clinique (2026-03-20)
+
+| Fix | Fichier | Détail |
+|-----|---------|--------|
+| L1 | `src/common/safety.py` | +11 mots-clés EN : typos "kill me", idéation voilée sévérité 4 |
+| L1 | `src/common/safety.py` | +8 mots-clés FR : idéation voilée sévérité 4 |
+| L1 | `frontend/src/lib/scoringEngine.ts` | Miroir keyword — +19 expressions |
+| L2 | `frontend/src/lib/scoringEngine.ts` | Seuil masquage émotion positive : 0.25 → 0.15 |
+| L3 | `frontend/src/screens/Expression.tsx` | Nudge ambré au-dessus du textarea si text < 30 chars |
+| L3 | `frontend/src/screens/Expression.tsx` | Textarea min-h 320px → 180px (CTA toujours visible) |
 - `Dockerfile.api.distilbert` : `/var/lib/lists/*` → `/var/lib/apt/lists/*` (C15)
 
 ---
 
 *Certitudes : basées sur le code source analysé. Hypothèses signalées par "Déduit". Inconnues : métriques de performance en production réelle, volume d'utilisateurs actifs, validation clinique externe.*
 
-*Document généré le 2026-03-19. Mis à jour le 2026-03-19 : résultats DistilBERT v2 validés, déploiement effectué, seuil prod ajusté à 0.65. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité, 348 tests. Mis à jour le 2026-03-20 : stratégie de renforcement clinique (section 10) — 17 nouveaux mots-clés sévérité 4-5 (typos + idéation voilée), seuil masquage 0.25→0.15, nudge UX texte court. 167 tests.*
+*Document généré le 2026-03-19. Mis à jour le 2026-03-19 : résultats DistilBERT v2 validés, déploiement effectué, seuil prod ajusté à 0.65. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité, 348 tests. Mis à jour le 2026-03-20 : stratégie de renforcement clinique (section 10) — 17 nouveaux mots-clés sévérité 4-5 (typos + idéation voilée), seuil masquage 0.25→0.15, nudge UX texte court, textarea réduit pour visibilité CTA. 167 tests pytest, 365 tests total. Merge en production (main).*
