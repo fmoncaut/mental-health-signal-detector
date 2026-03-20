@@ -8,7 +8,6 @@ Couvre :
 """
 
 import pytest
-from pathlib import Path
 
 from src.common.safety import check_critical, normalize_text
 

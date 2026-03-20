@@ -7,7 +7,6 @@ Couvre le plancher de sécurité EMOJI_FLOOR :
 - Emojis neutres/positifs → niveau determiné par le score uniquement
 """
 from src.checkin.engine import compute_score, get_level, build_response, DistressLevel, apply_intensity_boost
-from src.common.safety import check_critical
 
 
 # ---------------------------------------------------------------------------

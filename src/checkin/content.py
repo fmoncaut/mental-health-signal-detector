@@ -28,12 +28,8 @@ EMOJI_LABELS: dict[str, str] = {
     "😢": "Vraiment pas bien",
 }
 
-# AXE 5 - RISQUE CRITIQUE : importés depuis src.common.safety — source de vérité unique.
-from src.common.safety import (
-    CRITICAL_KEYWORDS,
-    CRITICAL_KEYWORDS_EN,
-    CRITICAL_KEYWORDS_FR,
-)
+# AXE 5 - RISQUE CRITIQUE : définis dans src.common.safety — source de vérité unique.
+# engine.py les importe directement depuis safety.py.
 
 # Modificateurs intensite/frequence — boostent le score
 INTENSITY_MODIFIERS_FR = [

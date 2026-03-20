@@ -11,8 +11,6 @@ Chaque classe cible un finding de la revue de sécurité :
   B3  — Rate limit : IP extraite de X-Forwarded-For
 """
 
-import importlib
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
