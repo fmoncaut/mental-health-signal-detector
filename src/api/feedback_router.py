@@ -13,6 +13,7 @@ Variables d'environnement requises :
 """
 
 from __future__ import annotations
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -32,6 +33,26 @@ _TABLE = "anonymous_feedback"
 _SUPABASE_DOMAIN = ".supabase.co"
 
 
+def _is_valid_supabase_url(raw_url: str) -> bool:
+    """Validate Supabase endpoint URL used for feedback persistence.
+
+    Accepts only HTTPS URLs targeting a hostname under ``*.supabase.co``.
+    Disallows credentials and query fragments to reduce configuration abuse
+    and SSRF-style redirection vectors.
+    """
+    parsed = urlparse(raw_url.strip())
+    host = parsed.hostname or ""
+    if parsed.scheme != "https":
+        return False
+    if not host.endswith(_SUPABASE_DOMAIN):
+        return False
+    if parsed.username or parsed.password:
+        return False
+    if parsed.fragment or parsed.query:
+        return False
+    return True
+
+
 class FeedbackPayload(BaseModel):
     """Données envoyées par le frontend lors d'un consentement opt-in."""
 
@@ -48,13 +69,22 @@ class FeedbackPayload(BaseModel):
             raise ValueError("consent must be True to store data")
         return v
 
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str) -> str:
+        text = v.strip()
+        if not text:
+            raise ValueError("text cannot be blank")
+        return text
+
     @field_validator("emotion")
     @classmethod
     def emotion_allowlist(cls, v: str) -> str:
         allowed = {"joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"}
-        if v not in allowed:
+        normalized = v.strip().lower()
+        if normalized not in allowed:
             raise ValueError(f"emotion must be one of {allowed}")
-        return v
+        return normalized
 
 
 @router.post("", status_code=status.HTTP_204_NO_CONTENT)
@@ -73,7 +103,7 @@ async def save_feedback(payload: FeedbackPayload) -> None:
         return  # Dégradation gracieuse : pas d'erreur côté utilisateur
 
     # Validation domaine Supabase — anti-SSRF configuration injection
-    if not supabase_url.endswith(_SUPABASE_DOMAIN):
+    if not _is_valid_supabase_url(supabase_url):
         logger.error("SUPABASE_URL invalide — doit se terminer par {}", _SUPABASE_DOMAIN)
         return
 

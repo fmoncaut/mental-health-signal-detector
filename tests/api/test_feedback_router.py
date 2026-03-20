@@ -21,6 +21,29 @@ _SETTINGS_NO_SUPABASE = Settings(supabase_url="", supabase_service_key="")
 _SETTINGS_WITH_SUPABASE = Settings(supabase_url="https://example.supabase.co", supabase_service_key="fake-key")
 
 
+class TestSupabaseUrlValidation:
+    def test_accepts_https_supabase_url(self):
+        from src.api.feedback_router import _is_valid_supabase_url
+
+        assert _is_valid_supabase_url("https://example.supabase.co") is True
+
+    def test_rejects_http_scheme(self):
+        from src.api.feedback_router import _is_valid_supabase_url
+
+        assert _is_valid_supabase_url("http://example.supabase.co") is False
+
+    def test_rejects_url_with_credentials(self):
+        from src.api.feedback_router import _is_valid_supabase_url
+
+        assert _is_valid_supabase_url("https://user:pass@example.supabase.co") is False
+
+    def test_rejects_url_with_query_or_fragment(self):
+        from src.api.feedback_router import _is_valid_supabase_url
+
+        assert _is_valid_supabase_url("https://example.supabase.co?x=1") is False
+        assert _is_valid_supabase_url("https://example.supabase.co#frag") is False
+
+
 class TestFeedbackValidation:
     """Validation Pydantic — payloads invalides."""
 
@@ -39,10 +62,21 @@ class TestFeedbackValidation:
         res = client.post("/feedback", json=payload)
         assert res.status_code == 422
 
+    def test_text_whitespace_only_rejected(self):
+        payload = {**VALID_PAYLOAD, "text": "   \n\t  "}
+        res = client.post("/feedback", json=payload)
+        assert res.status_code == 422
+
     def test_invalid_emotion_rejected(self):
         payload = {**VALID_PAYLOAD, "emotion": "rage"}
         res = client.post("/feedback", json=payload)
         assert res.status_code == 422
+
+    def test_emotion_is_normalized(self):
+        payload = {**VALID_PAYLOAD, "emotion": "  Sadness  "}
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_NO_SUPABASE):
+            res = client.post("/feedback", json=payload)
+        assert res.status_code == 204
 
     def test_distress_level_out_of_range(self):
         for bad in [-1, 5]:
@@ -83,6 +117,21 @@ class TestFeedbackNoSupabase:
     def test_returns_204_when_httpx_unavailable(self):
         with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE), \
              patch("src.api.feedback_router._HTTPX_AVAILABLE", False):
+            res = client.post("/feedback", json=VALID_PAYLOAD)
+        assert res.status_code == 204
+
+    def test_returns_204_when_supabase_url_is_insecure(self):
+        bad_settings = Settings(supabase_url="http://example.supabase.co", supabase_service_key="fake-key")
+        with patch("src.api.feedback_router.get_settings", return_value=bad_settings):
+            res = client.post("/feedback", json=VALID_PAYLOAD)
+        assert res.status_code == 204
+
+    def test_returns_204_when_supabase_url_contains_query(self):
+        bad_settings = Settings(
+            supabase_url="https://example.supabase.co?redirect=https://evil.example",
+            supabase_service_key="fake-key",
+        )
+        with patch("src.api.feedback_router.get_settings", return_value=bad_settings):
             res = client.post("/feedback", json=VALID_PAYLOAD)
         assert res.status_code == 204
 

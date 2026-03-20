@@ -248,6 +248,16 @@ Améliorations v2.1 intégrées dans le notebook :
 | Low | S4 — Injection prompt via évolution modèle | `_build_user_prompt` reçoit scalaires explicites | `src/api/analyze_router.py` |
 | Low | S6 — Fuite chemin interne dans logs | `logger.exception()` remplace `logger.error(f"...{e}")` | `src/api/main.py` |
 
+### Revue 4 — durcissement complémentaire (2026-03-20)
+
+| Criticité | Finding | Correction | Fichier |
+|-----------|---------|-----------|---------|
+| High | CORS prod permissif (`ALLOWED_ORIGINS=*`) | Wildcard désormais rejeté en production (aucune origine autorisée) | `src/api/main.py` |
+| Medium | SSRF/config abuse via URL Supabase malformée | Validation URL stricte (HTTPS, hostname `*.supabase.co`, sans credentials/query/fragment) | `src/api/feedback_router.py` |
+| Medium | Données invalides feedback (`text` blanc, `emotion` casse/espaces) | Validators Pydantic : trim + reject blank + normalisation lowercase | `src/api/feedback_router.py` |
+| Low | Erreur runtime possible si payload Anthropic inattendu | Parsing défensif du bloc texte + timeout externe | `src/api/analyze_router.py` |
+| Low | Headers incomplets côté API | `Permissions-Policy` + `Content-Security-Policy` ajoutés | `src/api/main.py` |
+
 ### Posture actuelle — `ruff` ✅ · `pip-audit` ✅ (1 exception documentée) · 117/117 tests ✅
 
 ---

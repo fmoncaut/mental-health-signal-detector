@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Endpoint `/analyze` durci : timeout explicite côté Anthropic + parsing robuste de la réponse pour éviter les erreurs runtime sur payload inattendu.
+- Endpoint `/feedback` durci : validation stricte du payload (`text` non vide après trim, normalisation `emotion`) et validation URL Supabase (HTTPS + domaine autorisé).
+
+### Security
+- CORS production renforcé : `ALLOWED_ORIGINS=*` est désormais rejeté (aucune origine autorisée) pour éviter une exposition cross-origin involontaire.
+- Headers HTTP de sécurité renforcés : ajout de `Permissions-Policy` et `Content-Security-Policy` sur les réponses API.
+- Protection SSRF configurationnelle sur `/feedback` renforcée via parsing URL (`urllib.parse`) au lieu d'un simple `endswith`.
+
+### Tests
+- Ajout de tests de régression sécurité pour CORS prod strict, validation URL Supabase, texte blanc-only, et normalisation des émotions.
+
 ## [0.3.0] - 2026-03-18
 
 ### Added

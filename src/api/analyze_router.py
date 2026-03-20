@@ -139,10 +139,14 @@ def analyze_endpoint(request: Request, profile: DiagnosticProfileRequest) -> dic
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=256,
+            timeout=10.0,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        text = message.content[0].text.strip() if message.content else ""
+        text = ""
+        if message.content:
+            first_block = message.content[0]
+            text = (getattr(first_block, "text", "") or "").strip()
         if not text:
             raise ValueError("Réponse Claude vide.")
 

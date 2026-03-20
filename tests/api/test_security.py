@@ -224,7 +224,7 @@ class TestCorsConfiguration:
         if env != "production":
             return ["*"]
         if allowed_origins == "*":
-            return ["*"]  # warning loggué, mais accepté
+            return []
         return [o.strip() for o in allowed_origins.split(",") if o.strip()]
 
     def test_dev_env_allows_wildcard(self):
@@ -250,7 +250,7 @@ class TestCorsConfiguration:
         assert "" not in origins
 
     def test_production_wildcard_emits_warning(self):
-        """ALLOWED_ORIGINS=* en production doit logger un warning."""
+        """ALLOWED_ORIGINS=* en production doit logger une erreur de config."""
         with patch("src.api.main.logger") as mock_logger:
             # Simule le rechargement avec env=production et origins=*
             import src.api.main as main_module
@@ -261,8 +261,8 @@ class TestCorsConfiguration:
                 if mock_settings.env != "production":
                     pass
                 elif raw == "*":
-                    mock_logger.warning("CORS: ALLOWED_ORIGINS=* en production")
-            mock_logger.warning.assert_called_once()
+                    mock_logger.error("CORS: ALLOWED_ORIGINS=* interdit en production")
+            mock_logger.error.assert_called_once()
 
 
 # ─── S4 : _build_user_prompt n'injecte pas userText ─────────────────────────

@@ -53,11 +53,11 @@ _settings = get_settings()
 _raw_origins = _settings.allowed_origins
 if _settings.env != "production":
     # Dev, staging, ou env non configuré → origines ouvertes
-    _ALLOWED_ORIGINS: list[str] | str = ["*"]
+    _ALLOWED_ORIGINS: list[str] = ["*"]
 elif _raw_origins == "*":
-    # Production avec ALLOWED_ORIGINS=* — alerte et accepte (choix explicite)
-    logger.warning("CORS: ALLOWED_ORIGINS=* en production — verrouiller les origines autorisées !")
-    _ALLOWED_ORIGINS = ["*"]
+    # En production, bloquer le wildcard pour éviter une exposition cross-origin large.
+    logger.error("CORS: ALLOWED_ORIGINS=* interdit en production — aucune origine n'est autorisée.")
+    _ALLOWED_ORIGINS = []
 else:
     _ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
@@ -113,6 +113,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
         if _settings.env == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
         return response
@@ -121,8 +123,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
