@@ -235,10 +235,35 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 
 ### Posture technique actuelle
 
-**315 tests automatisés** (117 Python + 180 TypeScript + 18 Playwright), CI GitHub Actions, 3 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
+**150 tests pytest** (+ 33 nouveaux ce sprint) + 180 Vitest + 18 Playwright = **348 tests automatisés**, CI GitHub Actions, 4 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
+
+---
+
+## Annexe — Code review 2026-03-20 (commit e7bb95e)
+
+Audit complet 6 phases (Python + TypeScript). 15 correctifs appliqués, 150/150 tests passent.
+
+### Correctifs critiques / élevés
+
+| ID | Fichier | Fix |
+|----|---------|-----|
+| C1 | `src/checkin/schemas.py` | `ResourceItem.url: str | None = None` — crash 500 évité quand SAMU retourné lors d'une détection suicidaire |
+| C4 | `src/common/safety.py` *(nouveau)* | Source de vérité unique : `normalize_text()` + `check_critical()` + ~45 mots-clés FR/EN — fin de la divergence entre modules |
+| C3 | `src/checkin/engine.py` | `apply_intensity_boost` : `text.lower()` → `normalize_text()` pour couvrir accents FR |
+| C6 | `frontend/src/lib/scoringEngine.ts` | `detectClinicalDimensions` : `toLowerCase()` → `normalizeText()` + mots-clés pré-normalisés |
+| C7 | `src/api/rate_limit.py` | X-Forwarded-For : dernière IP (proxy de confiance) au lieu de première (forgeable) |
+
+### Correctifs moyens / faibles
+
+- `main.py` : `int(content_length)` protégé contre `ValueError` (C2)
+- `main.py` : middleware `SecurityHeadersMiddleware` — `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` (C9)
+- `solutions/schemas.py` : validateur `selfReportAnswers` valeurs ∈ [0, 3] (C10)
+- `analyze_router.py` : singleton Anthropic thread-safe (double-check locking) (C12)
+- `Expression.tsx` : `maxLength={5000}` sur le textarea (C13)
+- `Dockerfile.api.distilbert` : `/var/lib/lists/*` → `/var/lib/apt/lists/*` (C15)
 
 ---
 
 *Certitudes : basées sur le code source analysé. Hypothèses signalées par "Déduit". Inconnues : métriques de performance en production réelle, volume d'utilisateurs actifs, validation clinique externe.*
 
-*Document généré le 2026-03-19. Mis à jour le 2026-03-19 : résultats DistilBERT v2 validés, déploiement effectué, seuil prod ajusté à 0.65.*
+*Document généré le 2026-03-19. Mis à jour le 2026-03-19 : résultats DistilBERT v2 validés, déploiement effectué, seuil prod ajusté à 0.65. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité, 348 tests.*
