@@ -13,32 +13,58 @@ import type { ClinicalDimension, ClinicalProfile, DiagnosticProfile } from "../t
 
 export type DistressLevel = "light" | "elevated" | "critical";
 
+// ─── Normalisation robuste ────────────────────────────────────────────────────
+// Supprime accents, apostrophes variantes (courbe/droite/unicode), casse.
+// Garantit que "j'ai envie de mourir" = "jai envie de mourir" = "J'AI ENVIE DE MOURIR".
+export function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // accents : é→e, ç→c, à→a
+    .replace(/[\u2018\u2019\u201c\u201d'`]/g, "")        // apostrophes → supprimées
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // ─── Filet de sécurité absolu ────────────────────────────────────────────────
-// Idéation suicidaire explicite + variantes indirectes (fardeau, disparition,
-// absence de raison de vivre). Toute correspondance → "critical" immédiat.
+// Stockés normalisés (sans accents ni apostrophes) — comparés via normalizeText().
+// Idéation suicidaire explicite + variantes indirectes (fardeau, disparition).
+// Toute correspondance → "critical" immédiat, indépendant du score ML.
 export const CRITICAL_KEYWORDS = [
-  // Idéation directe
-  "suicide", "suicider", "me tuer", "mourir", "plus envie de vivre",
-  "disparaître", "en finir", "me supprimer", "j'ai envie de mourir",
-  "pensées suicidaires", "je veux mourir",
-  "je n'en peux plus", "je veux disparaître", "je ne veux plus être là",
-  "personne ne m'aime", "personne ne peut m'aider",
-  "je ne veux plus vivre", "j'en ai marre de tout", "tout seul au monde",
-  // Idéation indirecte — fardeau / absence perçue bénéfique (rec. clinicien)
-  "ça serait mieux sans moi", "tout serait plus simple si je n'étais plus là",
-  "plus de raison de vivre", "à quoi bon vivre", "je suis un fardeau",
+  // FR — idéation directe
+  "suicide", "suicider", "me suicider", "me tuer", "mourir",
+  "plus envie de vivre", "envie de mourir", "jai envie de mourir",
+  "pensees suicidaires", "je veux mourir", "je veux en finir",
+  "en finir avec tout", "en finir avec la vie", "en finir",
+  "me supprimer", "disparaitre", "je veux disparaitre",
+  "je ne veux plus etre la", "je ne veux plus vivre",
+  "me faire du mal", "je vais me faire du mal",
+  // FR — idéation indirecte (fardeau, absence bénéfique)
+  "ca serait mieux sans moi", "tout irait mieux sans moi",
+  "tout le monde serait mieux sans moi",
+  "plus de raison de vivre", "aucune raison de vivre",
+  "plus de raison de continuer", "a quoi bon vivre",
+  "je suis un fardeau", "je ne sers a rien a personne",
+  "si je disparaissais personne sen apercevrait",
   "personne ne remarquerait si je disparaissais",
-  // EN — direct suicidal ideation (expressions les plus fréquentes)
+  "jai besoin de disparaitre",
+  // EN — direct suicidal ideation
   "kill myself", "i want to kill myself", "want to kill myself",
   "wanna kill myself", "gonna kill myself",
   "end my life", "want to end my life", "i want to end my life",
+  "i want to end it", "want to end it all",
   "take my life", "take my own life",
-  "i want to die", "i wanna die", "wanna die",
+  "i want to die", "want to die", "i wanna die", "wanna die",
   "hurt myself", "want to hurt myself", "i want to hurt myself",
   "cut myself", "harm myself",
+  "suicide", "suicidal",
   // EN — indirect suicidal ideation
-  "better off without me", "no reason to live", "can't go on anymore",
-  "no point in living", "don't want to be here anymore",
+  "better off without me", "everyone would be better without me",
+  "world would be better without me", "no one would miss me",
+  "no reason to live", "nothing to live for",
+  "cant go on", "cant go on anymore",
+  "no point in living", "no point living",
+  "dont want to live", "i dont want to live",
+  "dont want to be here anymore",
 ];
 
 // ─── Seuils de triage clinique ───────────────────────────────────────────────
@@ -55,14 +81,17 @@ export const EMOTION_FLOOR: Record<string, number> = {
 // ─── Signaux texte de détresse générale (Fix 1 & 3) ─────────────────────────
 // Utilisés dans le fallback (API ML indisponible) pour détecter une incohérence
 // entre l'émotion sélectionnée (positive) et le texte saisi (négatif).
+// Stockés normalisés (sans accents ni apostrophes) — comparés via normalizeText().
 export const DISTRESS_TEXT_SIGNALS = [
-  "je me sens mal", "ça ne va pas", "je souffre", "j'ai du mal",
-  "tout va mal", "je suis épuisé", "je pleure", "je suis triste",
-  "j'en ai marre", "je suis perdu", "je suis seul", "je me sens seul",
-  "j'ai peur", "je suis anxieux", "je suis stressé", "ça fait mal",
-  "je ne suis pas bien", "je vais pas bien", "j'ai besoin d'aide",
-  "i feel bad", "i'm struggling", "i'm suffering", "i feel terrible",
-  "i'm not okay", "i'm not ok",
+  // FR
+  "je me sens mal", "ca ne va pas", "je souffre", "jai du mal",
+  "tout va mal", "je suis epuise", "je pleure", "je suis triste",
+  "jen ai marre", "je suis perdu", "je suis seul", "je me sens seul",
+  "jai peur", "je suis anxieux", "je suis stresse", "ca fait mal",
+  "je ne suis pas bien", "je vais pas bien", "jai besoin daide",
+  // EN
+  "i feel bad", "im struggling", "im suffering", "i feel terrible",
+  "im not okay", "im not ok",
   "i want to die", "kill myself", "hurt myself", "end my life",
 ];
 
@@ -177,10 +206,10 @@ export function getDistressLevel(
   dimensions: ClinicalDimension[],
   selfScore: number | null
 ): DistressLevel {
-  const lowerText = userText.toLowerCase();
+  const normalizedText = normalizeText(userText);
 
-  // 1. Sécurité absolue : keywords critiques
-  if (CRITICAL_KEYWORDS.some((kw) => lowerText.includes(kw))) return "critical";
+  // 1. Sécurité absolue : keywords critiques (normalisés — accents + apostrophes)
+  if (CRITICAL_KEYWORDS.some((kw) => normalizedText.includes(kw))) return "critical";
 
   // 2. Dysrégulation → toujours au moins elevated
   if (dimensions.includes("dysregulation")) return "elevated";
@@ -205,7 +234,7 @@ export function getDistressLevel(
   if (fallbackScore >= SCORE_CRITICAL) return "critical";
   if (fallbackScore >= SCORE_ELEVATED) return "elevated";
   // Signaux texte généraux : détecte "joy + je me sens mal" sans ML
-  if (DISTRESS_TEXT_SIGNALS.some((kw) => lowerText.includes(kw))) return "elevated";
+  if (DISTRESS_TEXT_SIGNALS.some((kw) => normalizedText.includes(kw))) return "elevated";
   return "light";
 }
 

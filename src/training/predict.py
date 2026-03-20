@@ -109,8 +109,13 @@ _CRITICAL_KEYWORDS = [
 
 
 def _check_critical(text: str) -> bool:
-    """Détecte l'idéation suicidaire par mots-clés, avant tout scoring ML."""
-    lower = text.lower().replace("\u2019", "").replace("'", "").replace("'", "")
+    """Détecte l'idéation suicidaire par mots-clés, avant tout scoring ML.
+    Normalise accents + apostrophes pour couvrir toutes les variantes de saisie.
+    """
+    import unicodedata
+    lower = unicodedata.normalize("NFD", text.lower())
+    lower = "".join(c for c in lower if unicodedata.category(c) != "Mn")
+    lower = lower.replace("\u2019", "").replace("'", "").replace("'", "").replace("`", "")
     return any(kw in lower for kw in _CRITICAL_KEYWORDS)
 
 

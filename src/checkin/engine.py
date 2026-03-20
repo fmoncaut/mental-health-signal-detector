@@ -50,8 +50,15 @@ EMOJI_FLOOR: dict[str, DistressLevel] = {
 
 
 def _normalize(s: str) -> str:
-    """Normalise pour la detection : minuscules, suppression des apostrophes variantes."""
-    return s.lower().replace("\u2019", "").replace("\u2018", "").replace("'", "").replace("'", "")
+    """Normalise pour la detection : minuscules, suppression accents + apostrophes variantes.
+    Garantit que 'j'ai envie de mourir' = 'jai envie de mourir' = 'J'AI ENVIE DE MOURIR'
+    et que 'disparaître' = 'disparaitre'.
+    """
+    import unicodedata
+    lower = s.lower()
+    no_accent = unicodedata.normalize("NFD", lower)
+    no_accent = "".join(c for c in no_accent if unicodedata.category(c) != "Mn")
+    return no_accent.replace("\u2019", "").replace("\u2018", "").replace("'", "").replace("'", "").replace("`", "")
 
 
 # Pre-normalisation des mots-cles pour correspondance robuste
