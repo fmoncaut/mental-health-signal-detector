@@ -204,7 +204,7 @@ jobs:
       # exit-code: '0' → trivy produit toujours le SARIF même si CVEs trouvées
       # continue-on-error: true → protège contre les timeouts DB téléchargement
       - name: trivy — scan filesystem CRITICAL/HIGH
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.35.0
         continue-on-error: true
         with:
           scan-type: fs
@@ -226,7 +226,7 @@ jobs:
 
       # Rapport JSON téléchargeable
       - name: trivy — rapport JSON
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@v0.35.0
         continue-on-error: true
         with:
           scan-type: fs
