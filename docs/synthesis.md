@@ -50,6 +50,14 @@ PHASE 7 — Renforcement clinique + UX          (semaine 5)
   ├── UX nudge texte court (<30 chars) au-dessus du textarea avec animation
   ├── Textarea : 320px → 180px — CTA toujours visible sans scroll
   └── 167 tests (+ 17 nouveaux cas de détection critiques)
+
+PHASE 8 — Code Review Copilot — sécurité API  (semaine 5)
+  ├── CORS prod durci : ALLOWED_ORIGINS=* → [] (bloqué) + logger.error
+  ├── Headers sécurité enrichis : Permissions-Policy + CSP + HSTS (prod uniquement)
+  ├── Anti-SSRF feedback : _is_valid_supabase_url() — HTTPS + *.supabase.co strict
+  ├── Validation payload feedback : text_not_blank + emotion_allowlist (8 valeurs)
+  ├── Analyze endpoint : timeout=10s Anthropic + parsing défensif ContentBlock
+  └── 188 tests (+ 21 nouveaux — test_feedback_router.py)
 ```
 
 ---
@@ -447,7 +455,7 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 
 ### Posture technique actuelle
 
-**167 tests pytest** + 180 Vitest + 18 Playwright = **365 tests automatisés**, CI GitHub Actions, 4 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
+**188 tests pytest** + 180 Vitest + 18 Playwright = **386 tests automatisés**, CI GitHub Actions, 4 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
 
 ---
 
@@ -732,4 +740,4 @@ Audit complet 6 phases (Python + TypeScript). 15 correctifs appliqués, 150/150 
 
 ---
 
-*Document généré le 2026-03-19. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité (348 tests), renforcement clinique Phase 7 (365 tests), Phase 8 collecte anonyme Supabase, code review 10 correctifs sécurité & RGPD — score 8.6/10. Merge en production (main → Render + Vercel).*
+*Document généré le 2026-03-19. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité (348 tests), renforcement clinique Phase 7 (365 tests), Phase 8 collecte anonyme Supabase, code review 10 correctifs sécurité & RGPD — score 8.6/10, code review Copilot : CORS durci, Permissions-Policy/CSP, anti-SSRF Supabase, validation payload feedback, timeout Anthropic — 188 tests pytest, 386 tests total. Merge en production (main → Render + Vercel).*
