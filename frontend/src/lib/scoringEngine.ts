@@ -28,8 +28,17 @@ export const CRITICAL_KEYWORDS = [
   "ça serait mieux sans moi", "tout serait plus simple si je n'étais plus là",
   "plus de raison de vivre", "à quoi bon vivre", "je suis un fardeau",
   "personne ne remarquerait si je disparaissais",
+  // EN — direct suicidal ideation (expressions les plus fréquentes)
+  "kill myself", "i want to kill myself", "want to kill myself",
+  "wanna kill myself", "gonna kill myself",
+  "end my life", "want to end my life", "i want to end my life",
+  "take my life", "take my own life",
+  "i want to die", "i wanna die", "wanna die",
+  "hurt myself", "want to hurt myself", "i want to hurt myself",
+  "cut myself", "harm myself",
   // EN — indirect suicidal ideation
   "better off without me", "no reason to live", "can't go on anymore",
+  "no point in living", "don't want to be here anymore",
 ];
 
 // ─── Seuils de triage clinique ───────────────────────────────────────────────
@@ -54,6 +63,7 @@ export const DISTRESS_TEXT_SIGNALS = [
   "je ne suis pas bien", "je vais pas bien", "j'ai besoin d'aide",
   "i feel bad", "i'm struggling", "i'm suffering", "i feel terrible",
   "i'm not okay", "i'm not ok",
+  "i want to die", "kill myself", "hurt myself", "end my life",
 ];
 
 // ─── Détection de dimensions cliniques dans le texte ────────────────────────
