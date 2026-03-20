@@ -4,6 +4,186 @@
 
 ---
 
+## 0. Cheminement du projet
+
+```
+PHASE 1 — NLP Pipeline                        (semaine 1-2)
+  ├── Baseline TF-IDF + Logistic Regression  → 78% accuracy, interprétable, <1ms
+  ├── DistilBERT v1 sur DAIR-AI 16K          → 96.8% F1 (sur-entraîné, distribution shift)
+  └── Décision : baseline en prod, DistilBERT à ré-entraîner
+
+PHASE 2 — Application React                   (semaine 2-3)
+  ├── 6 écrans : Welcome → Émotion → QuickCheck → Expression → Support → Solutions
+  ├── Fusion ML + émotion + questionnaire clinique PHQ-9/GAD-7
+  ├── Détection de masquage (joie déclarée + texte négatif)
+  └── Mode enfant / adulte, accessibilité WCAG 2.1 AA
+
+PHASE 3 — Moteur de recommandation + LLM      (semaine 3)
+  ├── Stepped-care NICE : 5 niveaux de triage (0→4)
+  ├── 8 émotions × 5 niveaux × 2 modes = 80 profils de réponse
+  ├── Claude Haiku (Anthropic API) : messages empathiques personnalisés
+  └── 3114 aux niveaux 3 et 4 (décision clinique)
+
+PHASE 4 — Qualité & Sécurité                 (semaine 3-4)
+  ├── 348 tests : 150 pytest + 180 Vitest + 18 Playwright
+  ├── CI/CD GitHub Actions (ruff, bandit, trivy, gitleaks, pip-audit)
+  ├── 4 revues de sécurité (OWASP, rate limiting, CORS, RGPD)
+  └── Filet de sécurité absolu : mots-clés critiques AVANT le ML
+
+PHASE 5 — DistilBERT v2 + eRisk25            (semaine 4)
+  ├── Dataset enrichi : Kaggle + DAIR-AI + GoEmotions + eRisk25 = 246K exemples
+  ├── eRisk25 (CLEF 2025) : 75 700 posts cliniquement validés → données gold
+  ├── Entraînement Google Colab T4 (~3h) → F1 Macro 85.9%, best epoch 3
+  ├── Push HuggingFace Hub : FabriceM/mh-distilbert-v2
+  └── Seuil ajusté 0.5→0.65 (distribution shift train 29% vs prod ~20%)
+
+PHASE 6 — Code Review + Consolidation         (semaine 4-5)
+  ├── 15 correctifs sécurité clinique (C1 CRITICAL → C15 LOW)
+  ├── Source de vérité unique : src/common/safety.py
+  ├── Normalisation UTF-8 accents + apostrophes FR/EN unifiée
+  └── Mental-BERT v3 (Accuracy 92.7%, Recall 95.9%) — prêt, GPU requis
+```
+
+---
+
+## Visualisations graphiques
+
+### Stack technique complète
+
+```mermaid
+graph TB
+    subgraph USER["👤 Utilisateur (mobile / desktop)"]
+        U[Smartphone / Navigateur]
+    end
+
+    subgraph FRONT["Frontend — Vercel (CDN mondial)"]
+        FE["React 18 + TypeScript\nVite 6 + Tailwind CSS v4"]
+        SE["scoringEngine.ts\n(local, zéro latence)"]
+        SOL["solutionEngine.ts\n(local, zéro latence)"]
+        FE --> SE --> SOL
+    end
+
+    subgraph BACK["Backend — Render Free (Paris)"]
+        API["FastAPI\n/predict · /checkin · /solutions · /analyze"]
+        LR["TF-IDF + LR\nbaseline.joblib\n989 KB · <1ms"]
+        SAFETY["src/common/safety.py\nMots-clés critiques\nFR/EN normalisés"]
+        API --> LR
+        API --> SAFETY
+    end
+
+    subgraph AI["IA Externe"]
+        CL["Claude Haiku\nAnthropic API\nMessages empathiques"]
+    end
+
+    subgraph MLREADY["ML en réserve (prêt, non déployé)"]
+        DB2["DistilBERT v2\nF1M 85.9% · ~3s CPU\nHuggingFace Hub"]
+        MB3["Mental-BERT v3\nRecall 95.9% · GPU requis\nGoogle Drive"]
+    end
+
+    U --> FE
+    FE -->|"POST /predict\nPOST /checkin"| API
+    FE -->|"POST /analyze"| API
+    API -->|"messages.create"| CL
+    API -.->|"Render Starter ($7/mois)"| DB2
+    DB2 -.->|"Instance GPU"| MB3
+```
+
+---
+
+### Pipeline ML complet (données → production)
+
+```mermaid
+flowchart LR
+    subgraph DATA["Sources de données"]
+        D1["Kaggle Reddit\n100K posts\n80/20 déprimé"]
+        D2["DAIR-AI\n18K phrases\nbinairisées"]
+        D3["GoEmotions\n53K comments\nbinairisés"]
+        D4["eRisk25 CLEF\n75K posts\n✅ validés cliniciens"]
+    end
+
+    subgraph PREP["Préparation"]
+        P1["Nettoyage\nURLs, @mentions\ncaractères"]
+        P2["Détection langue\n+ traduction FR→EN\n(langdetect + deep-translator)"]
+        P3["Pondération classes\n0: 0.71 · 1: 1.71\n(déséquilibre dataset)"]
+    end
+
+    subgraph TRAIN["Entraînement — Google Colab T4"]
+        T1["Fine-tuning\nDistilBERT-base\n3 époques effectives"]
+        T2["Early stopping\nF1 Macro, patience=1\nBest epoch 3"]
+        T3["Checkpoint-20772\nF1M 85.9%\nAccuracy 88.4%"]
+    end
+
+    subgraph EVAL["Évaluation"]
+        E1["Validation mixte\nF1 Macro 85.9%"]
+        E2["Test Kaggle-only\nSeuil ajusté 0.65"]
+        E3["SHAP\nTop 20 mots influents"]
+    end
+
+    subgraph DEPLOY["Déploiement"]
+        HF["HuggingFace Hub\nFabriceM/mh-distilbert-v2"]
+        PROD["Render\nbaseline.joblib\n(prod actuelle)"]
+    end
+
+    D1 & D2 & D3 & D4 --> P1 --> P2 --> P3
+    P3 --> T1 --> T2 --> T3
+    T3 --> E1 & E2 & E3
+    T3 --> HF
+    HF -.->|"Render Starter"| PROD
+    PROD -->|"Baseline actuel"| PROD
+```
+
+---
+
+### Pipeline de sécurité clinique (par requête)
+
+```mermaid
+flowchart TD
+    IN["Texte utilisateur\n(Expression libre)"]
+
+    IN --> KW{{"🔴 Mots-clés critiques\nen FR + EN\nnormalisés UTF-8"}}
+    KW -->|"OUI\n(ex: kill myself, je veux mourir)"| CRIT["CRITICAL — Niveau 4\n🚨 3114 affiché\nlog hashé SHA-256\naucune donnée stockée"]
+    KW -->|"NON"| TRANS["Détection langue\nTraduction FR→EN"]
+    TRANS --> ML["Score ML\n0.0 → 1.0"]
+    ML --> FUSE["Fusion scores\nML × 0.55 + SelfReport × 0.45\n+ plancher émotion\n+ boost intensité"]
+    FUSE --> TRIAGE{{"Score final"}}
+    TRIAGE -->|"≥ 0.65"| L4["Niveau 3-4\nRessources urgence\nProfessionnel de santé"]
+    TRIAGE -->|"≥ 0.35"| L2["Niveau 1-2\nSoutien + Micro-actions\nPsychoeducation"]
+    TRIAGE -->|"< 0.35"| L0["Niveau 0\nBien-être\nRenforcement positif"]
+    L4 & L2 & L0 --> LLM["Claude Haiku\nMessage personnalisé\n2-3 phrases empathiques"]
+```
+
+---
+
+### Parcours utilisateur
+
+```mermaid
+sequenceDiagram
+    participant U as 👤 Utilisateur
+    participant FE as React (local)
+    participant API as FastAPI (Render)
+    participant LLM as Claude Haiku
+
+    U->>FE: Choix mode (enfant/adulte)
+    U->>FE: Sélection émotion (1/8)
+    Note over FE: Émotion négative ?
+    FE->>U: QuickCheck (3 questions PHQ-9/GAD-7)
+    U->>FE: Texte libre
+    FE->>API: POST /predict {text}
+    API-->>FE: {score_distress: 0.72, label: 1}
+    Note over FE: scoringEngine.ts<br/>fusion ML + émotion + self-report
+    FE->>U: SupportResponse (message local)
+    FE->>API: POST /analyze {profile clinique}
+    API->>LLM: Prompt clinique sécurisé
+    LLM-->>API: Message empathique 2-3 phrases
+    API-->>FE: {message: "..."}
+    FE->>U: Message Claude (swap si succès)
+    U->>FE: "Voir mes pistes d'action"
+    Note over FE: solutionEngine.ts (local)<br/>triage 0→4, stepped-care NICE
+    FE->>U: Solutions + ressources adaptées
+```
+
+---
+
 ## 1. Contexte et problématique
 
 ### Pourquoi ce projet existe
@@ -236,6 +416,84 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 ### Posture technique actuelle
 
 **150 tests pytest** (+ 33 nouveaux ce sprint) + 180 Vitest + 18 Playwright = **348 tests automatisés**, CI GitHub Actions, 4 revues de sécurité documentées, conformité WCAG 2.1 AA — base solide pour une montée en charge.
+
+---
+
+## 9. Stratégie de collecte de données validées
+
+> **Contexte :** Actuellement, aucune donnée utilisateur n'est stockée côté serveur (RGPD Art. 9). Pour améliorer les modèles, il faut construire un pipeline de collecte **avec consentement explicite** et **anonymisation irréversible**.
+
+### Pourquoi c'est précieux
+
+Les données issues de l'application sont en **distribution réelle** (vraies personnes, vrais textes, contexte FR) — radicalement différentes des datasets Reddit en anglais sur lesquels les modèles actuels sont entraînés. Un échantillon de 5 000 textes validés en conditions réelles vaut bien plus que 50 000 posts Reddit pour un usage clinique français.
+
+### Options techniques (du plus simple au plus robuste)
+
+#### Option A — Feedback explicite post-session *(recommandée pour commencer)*
+Après la réponse de soutien, afficher une question discrète :
+> *"Ce message vous correspond-il ?"* · 👍 Oui · 👎 Non
+
+**Ce qu'on collecte :** paire (hash texte anonymisé, score ML, niveau détresse, validation utilisateur).
+**Infrastructure :** endpoint `POST /feedback` → Supabase / Postgres (gratuit jusqu'à 500 MB).
+**RGPD :** opt-in explicite, texte haché SHA-256 (irréversible), aucune donnée nominative.
+
+```mermaid
+flowchart LR
+    U["👤 Utilisateur\n(opt-in)"] --> HASH["SHA-256\ndu texte"]
+    HASH --> DB[("Supabase\nPostgres")]
+    DB --> LABEL["Label humain\nou ML confirmé"]
+    LABEL --> HF["HuggingFace\nPrivate Dataset"]
+    HF --> RETRAIN["Re-entraînement\nDistilBERT v3-FR"]
+```
+
+#### Option B — Active Learning (apprentissage actif)
+Identifier automatiquement les prédictions **incertaines** (score ML entre 0.40 et 0.60) et les mettre en file d'annotation prioritaire.
+**Avantage :** chaque annotation sur un cas incertain améliore plus le modèle qu'un cas facile.
+**Infrastructure :** file d'annotation dans Label Studio (open source) ou Argilla.
+
+#### Option C — Validation longitudinale
+Si l'utilisateur revient J+1 ou J+7, lui demander :
+> *"La semaine dernière vous ressentiez [émotion]. Comment allez-vous maintenant ?"*
+
+Cela crée des paires **avant/après** — signal de validation que le triage initial était juste et que les ressources proposées ont aidé (ou non).
+
+#### Option D — Interface clinicien *(niveau avancé)*
+Un professionnel de santé partenaire peut annoter des sessions anonymisées via une interface dédiée (`/admin/annotate`). Chaque annotation = gold label clinique.
+**Valeur :** équivalent à du eRisk25 propriétaire, en contexte FR réel.
+
+### Architecture cible
+
+```mermaid
+graph LR
+    APP["Application\n(prod)"] -->|"opt-in + anonymisation"| COL["Collecteur\n/feedback"]
+    COL --> DB[("Base données\nTexte haché\n+ métadonnées")]
+    DB --> AL["Active Learning\nSélection incertains"]
+    AL --> ANN["Annotation\n(auto ML + humain)"]
+    ANN --> DS["Dataset FR\n(HuggingFace private)"]
+    DS --> FT["Fine-tuning\nDistilBERT-FR"]
+    FT --> EVAL["Évaluation\n+ seuil"]
+    EVAL --> PROD["Production\nAmélioration continue"]
+    PROD --> APP
+```
+
+### Contraintes RGPD à respecter
+
+| Exigence | Implémentation |
+|----------|---------------|
+| Consentement explicite | Popup opt-in avant tout stockage, opt-out disponible |
+| Anonymisation | SHA-256 du texte brut (irréversible), aucun identifiant |
+| Minimisation | Seuls les champs utiles au ML stockés (pas le texte en clair) |
+| Durée de conservation | 24 mois max, suppression automatique |
+| Droit à l'effacement | Impossible sur le hash (c'est l'objectif) — communiquer clairement |
+| Base légale | Intérêt légitime (amélioration de la sécurité clinique) ou consentement |
+
+### Prochaine étape concrète
+
+1. Ajouter `POST /feedback` dans FastAPI (5 champs : `text_hash`, `ml_score`, `emotion_id`, `distress_level`, `user_validation`)
+2. Connecter Supabase (gratuit, 500 MB) avec Row Level Security
+3. Afficher le widget de feedback dans `SupportResponse.tsx` (opt-in)
+4. Exporter mensuellement vers un dataset HuggingFace privé
+5. Re-entraîner DistilBERT sur le mix eRisk25 + données réelles dès 2 000 exemples collectés
 
 ---
 
