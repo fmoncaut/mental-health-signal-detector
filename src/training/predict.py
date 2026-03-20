@@ -128,9 +128,7 @@ def predict(text: str, model=None, model_type: str = "baseline") -> dict:
     """
     # Filet de sécurité absolu — priorité sur tout scoring ML
     if check_critical(text):
-        import hashlib
-        text_hash = hashlib.sha256(text.encode()).hexdigest()[:12]
-        logger.warning(f"CRITICAL détecté avant ML — hash={text_hash}")
+        logger.warning("CRITICAL détecté avant ML — idéation suicidaire (mots-clés correspondants)")
         return {
             "label": 1,
             "score_distress": 1.0,

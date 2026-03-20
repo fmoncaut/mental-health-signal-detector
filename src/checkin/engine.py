@@ -131,9 +131,7 @@ def build_response(
 
     # --- PRIORITE 1 : detection CRITICAL ---
     if check_critical(text):
-        import hashlib
-        text_hash = hashlib.sha256((text or "").encode()).hexdigest()[:12]
-        logger.warning(f"CRITICAL detecte : text_hash={text_hash} len={len(text or '')}")
+        logger.warning("CRITICAL détecté — idéation suicidaire (mots-clés correspondants)")
         return {
             "level":      DistressLevel.CRITICAL,
             "score":      1.0,

@@ -34,8 +34,24 @@ export function getSessions(): SessionRecord[] {
     const all: SessionRecord[] = JSON.parse(raw);
     const cutoff = Date.now() - MAX_AGE_MS;
     return all.filter((s) => new Date(s.date).getTime() > cutoff);
-  } catch {
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      // Données corrompues — nettoyage silencieux
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* quota */ }
+    }
     return [];
+  }
+}
+
+/**
+ * Efface tout l'historique local (RGPD Art. 17 — droit à l'effacement).
+ * Peut être appelé via un bouton "Effacer mon historique" dans les paramètres.
+ */
+export function clearSessions(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // localStorage indisponible — silencieux
   }
 }
 

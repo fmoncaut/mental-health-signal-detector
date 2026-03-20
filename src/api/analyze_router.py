@@ -153,8 +153,8 @@ def analyze_endpoint(request: Request, profile: DiagnosticProfileRequest) -> dic
         return {"message": text}
 
     except anthropic.AuthenticationError:
-        logger.error("[analyze] Clé API Anthropic invalide.")
-        raise HTTPException(status_code=503, detail="Clé API invalide — service indisponible.") from None
+        logger.error("[analyze] ALERTE : clé API Anthropic invalide ou expirée — rotation requise")
+        raise HTTPException(status_code=503, detail="Service de personnalisation indisponible.") from None
     except anthropic.RateLimitError:
         logger.warning("[analyze] Rate limit Anthropic atteint.")
         raise HTTPException(status_code=503, detail="Service temporairement indisponible.") from None

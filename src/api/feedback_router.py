@@ -29,7 +29,7 @@ from src.common.config import get_settings
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 _TABLE = "anonymous_feedback"
-_TABLE = "anonymous_feedback"
+_SUPABASE_DOMAIN = ".supabase.co"
 
 
 class FeedbackPayload(BaseModel):
@@ -72,6 +72,11 @@ async def save_feedback(payload: FeedbackPayload) -> None:
         logger.warning("Supabase non configuré (SUPABASE_URL/SUPABASE_SERVICE_KEY manquants) — feedback ignoré")
         return  # Dégradation gracieuse : pas d'erreur côté utilisateur
 
+    # Validation domaine Supabase — anti-SSRF configuration injection
+    if not supabase_url.endswith(_SUPABASE_DOMAIN):
+        logger.error("SUPABASE_URL invalide — doit se terminer par {}", _SUPABASE_DOMAIN)
+        return
+
     if not _HTTPX_AVAILABLE:
         logger.warning("httpx non installé — feedback ignoré")
         return
@@ -98,8 +103,9 @@ async def save_feedback(payload: FeedbackPayload) -> None:
             resp.raise_for_status()
             logger.info("Feedback anonyme enregistré — emotion={} distress_level={}", payload.emotion, payload.distress_level)
     except httpx.HTTPStatusError as exc:
-        logger.error("Supabase HTTP {} — {}", exc.response.status_code, exc.response.text)
+        # Ne pas loguer response.text (peut contenir des infos sensibles)
+        logger.error("Supabase HTTP {} — feedback non persisté", exc.response.status_code)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase indisponible")
-    except httpx.RequestError as exc:
-        logger.error("Supabase connexion échouée — {}", exc)
+    except httpx.RequestError:
+        logger.error("Supabase connexion échouée — feedback non persisté")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase indisponible")

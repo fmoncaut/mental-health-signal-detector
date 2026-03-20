@@ -12,7 +12,11 @@ une seule fois à l'import sur les mots-clés, et à chaque appel sur le
 texte utilisateur via :func:`normalize_text`.
 """
 
+import re
 import unicodedata
+
+# Regex compilée une seule fois — couvre toutes les variantes d'apostrophes
+_APOSTROPHE_RE = re.compile(r"[\u2018\u2019\u201c\u201d'`]")
 
 
 def normalize_text(text: str) -> str:
@@ -21,7 +25,8 @@ def normalize_text(text: str) -> str:
     Applique successivement :
     - Mise en minuscules
     - Suppression des diacritiques (NFD + filtrage Mn)
-    - Unification des variantes d'apostrophes (\u2018 \u2019 ' ' `)
+    - Suppression des variantes d'apostrophes (\u2018 \u2019 \u201c \u201d ' `)
+      via une regex compilée à l'import (O(n) garanti).
 
     Args:
         text: Texte brut à normaliser.
@@ -31,14 +36,7 @@ def normalize_text(text: str) -> str:
     """
     lower = unicodedata.normalize("NFD", text.lower())
     no_accent = "".join(c for c in lower if unicodedata.category(c) != "Mn")
-    return (
-        no_accent
-        .replace("\u2019", "")   # '
-        .replace("\u2018", "")   # '
-        .replace("'", "")
-        .replace("\u2018", "")
-        .replace("`", "")
-    )
+    return _APOSTROPHE_RE.sub("", no_accent)
 
 
 # ---------------------------------------------------------------------------
