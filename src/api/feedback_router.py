@@ -105,7 +105,7 @@ async def save_feedback(payload: FeedbackPayload) -> None:
     except httpx.HTTPStatusError as exc:
         # Ne pas loguer response.text (peut contenir des infos sensibles)
         logger.error("Supabase HTTP {} — feedback non persisté", exc.response.status_code)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase indisponible")
-    except httpx.RequestError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase indisponible") from exc
+    except httpx.RequestError as exc:
         logger.error("Supabase connexion échouée — feedback non persisté")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase indisponible")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Supabase indisponible") from exc
