@@ -217,8 +217,27 @@ export default function Expression() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="flex-1 mb-6"
+          className="mb-6"
         >
+          {/* Nudge texte court — au-dessus du champ, visible dès la saisie */}
+          <div className="h-8 flex items-center px-1 mb-2">
+            {text.length > 0 && text.length < 30 ? (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-xs text-amber-500 font-medium"
+              >
+                {mode === "kids"
+                  ? "Tu peux en dire un peu plus — ça m'aide à mieux te comprendre 🙏"
+                  : "Un peu plus de détails nous aide à mieux vous accompagner."}
+              </motion.p>
+            ) : (
+              <span className="text-xs text-gray-400 ml-auto">
+                {text.length > 0 && `${text.length} caractères`}
+              </span>
+            )}
+          </div>
+
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -229,23 +248,9 @@ export default function Expression() {
                 ? "Écris ce que tu ressens ici... Ce qui s'est passé, ce qui te tracasse, ou juste ce que tu penses."
                 : "Exprimez ce que vous ressentez... Les événements, vos pensées, vos préoccupations."
             }
-            className="w-full h-full min-h-[320px] bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-300 transition-all text-gray-700 placeholder:text-gray-400 leading-relaxed disabled:opacity-60"
+            className="w-full min-h-[180px] bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-300 transition-all text-gray-700 placeholder:text-gray-400 leading-relaxed disabled:opacity-60"
             autoFocus
           />
-          <div className="flex items-center justify-between mt-2 px-1">
-            {text.length > 0 && text.length < 30 ? (
-              <p className="text-xs text-amber-500 font-medium">
-                {mode === "kids"
-                  ? "Tu peux en dire un peu plus — ça m'aide à mieux te comprendre 🙏"
-                  : "Un peu plus de détails nous aide à mieux vous accompagner."}
-              </p>
-            ) : (
-              <span />
-            )}
-            <span className="text-xs text-gray-400 ml-auto">
-              {text.length > 0 && `${text.length} caractères`}
-            </span>
-          </div>
         </motion.div>
 
         <motion.button
