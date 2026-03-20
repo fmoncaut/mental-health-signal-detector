@@ -412,6 +412,7 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 - **Intégration clinique** : connecter à un système de référencement vers des professionnels (Mon Soutien Psy, médecin traitant)
 - **Certification** : envisager le marquage CE dispositif médical de classe I pour un usage en milieu scolaire ou hospitalier
 - **Multilinguisme** étendu : au-delà du FR/EN, notamment pour les populations migrantes
+- **Collecte de données validées** : pipeline opt-in + anonymisation pour créer un dataset FR en conditions réelles et alimenter les prochains entraînements — stratégie détaillée en section 9
 
 ### Posture technique actuelle
 
@@ -419,9 +420,11 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 
 ---
 
-## 9. Stratégie de collecte de données validées
+## 9. Stratégie de collecte de données validées *(évolution future — non implémentée)*
 
-> **Contexte :** Actuellement, aucune donnée utilisateur n'est stockée côté serveur (RGPD Art. 9). Pour améliorer les modèles, il faut construire un pipeline de collecte **avec consentement explicite** et **anonymisation irréversible**.
+> **Statut :** Cette section documente les options d'évolution identifiées. Elle n'est **pas en cours d'implémentation** — elle sert de référence pour une prochaine itération du projet.
+
+> **Contexte :** Actuellement, aucune donnée utilisateur n'est stockée côté serveur (RGPD Art. 9). Pour améliorer les modèles, une future version pourrait construire un pipeline de collecte **avec consentement explicite** et **anonymisation irréversible**.
 
 ### Pourquoi c'est précieux
 
@@ -487,13 +490,13 @@ graph LR
 | Droit à l'effacement | Impossible sur le hash (c'est l'objectif) — communiquer clairement |
 | Base légale | Intérêt légitime (amélioration de la sécurité clinique) ou consentement |
 
-### Prochaine étape concrète
+### Séquence d'implémentation recommandée *(si cette évolution est engagée)*
 
-1. Ajouter `POST /feedback` dans FastAPI (5 champs : `text_hash`, `ml_score`, `emotion_id`, `distress_level`, `user_validation`)
-2. Connecter Supabase (gratuit, 500 MB) avec Row Level Security
-3. Afficher le widget de feedback dans `SupportResponse.tsx` (opt-in)
-4. Exporter mensuellement vers un dataset HuggingFace privé
-5. Re-entraîner DistilBERT sur le mix eRisk25 + données réelles dès 2 000 exemples collectés
+1. `POST /feedback` dans FastAPI (5 champs : `text_hash`, `ml_score`, `emotion_id`, `distress_level`, `user_validation`)
+2. Supabase (gratuit jusqu'à 500 MB) avec Row Level Security
+3. Widget de feedback opt-in dans `SupportResponse.tsx`
+4. Export mensuel vers dataset HuggingFace privé
+5. Re-entraînement DistilBERT sur le mix eRisk25 + données réelles dès ~2 000 exemples validés
 
 ---
 
