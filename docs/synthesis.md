@@ -442,7 +442,7 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 - **Intégration clinique** : connecter à un système de référencement vers des professionnels (Mon Soutien Psy, médecin traitant)
 - **Certification** : envisager le marquage CE dispositif médical de classe I pour un usage en milieu scolaire ou hospitalier
 - **Multilinguisme** étendu : au-delà du FR/EN, notamment pour les populations migrantes
-- **Collecte de données validées** : pipeline opt-in + anonymisation pour créer un dataset FR en conditions réelles et alimenter les prochains entraînements — stratégie détaillée en section 9
+- **Collecte de données anonymes opt-in** ✅ : endpoint `POST /feedback`, UI consentement RGPD, Supabase free tier — implémenté en Phase 8, détaillé en section 9
 - **Renforcement clinique du filet de sécurité** : Tier VEILED (signaux sévérité 3), nouvelles dimensions cliniques (dissociation, symptômes psychotiques), score pondéré 1–5 — roadmap en section 10
 
 ### Posture technique actuelle
@@ -451,11 +451,50 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 
 ---
 
-## 9. Stratégie de collecte de données validées *(évolution future — non implémentée)*
+## 9. Collecte de données anonymes opt-in *(Phase 8 — implémentée)*
 
-> **Statut :** Cette section documente les options d'évolution identifiées. Elle n'est **pas en cours d'implémentation** — elle sert de référence pour une prochaine itération du projet.
+> **Statut :** ✅ **Implémentée** — Phase 8 (2026-03-20). L'infrastructure de collecte anonyme opt-in est opérationnelle. L'activation en production nécessite de configurer un projet Supabase et d'ajouter les variables d'environnement `SUPABASE_URL` et `SUPABASE_SERVICE_KEY`.
 
-> **Contexte :** Actuellement, aucune donnée utilisateur n'est stockée côté serveur (RGPD Art. 9). Pour améliorer les modèles, une future version pourrait construire un pipeline de collecte **avec consentement explicite** et **anonymisation irréversible**.
+> **Contexte :** Pour améliorer les modèles sur des textes réels en français, un pipeline de collecte a été mis en place avec **consentement explicite RGPD** et **stockage brut anonymisé** (sans aucune donnée identifiante).
+
+### Architecture implémentée (Option A)
+
+```
+Expression.tsx              feedback_router.py          Supabase (free tier)
+────────────────────        ────────────────────        ──────────────────────
+Checkbox opt-in visible  →  POST /feedback          →   Table anonymous_feedback
+uniquement si texte saisi   Validation Pydantic         (text, emotion,
+Message rassurant RGPD      Dégradation gracieuse       distress_level, score_ml,
+consent=True requis         si Supabase absent          created_at)
+Fire-and-forget async       13 tests pytest ✅
+```
+
+### Ce qui est stocké (et uniquement cela)
+
+| Champ | Valeur | Sensibilité |
+|---|---|---|
+| `text` | Texte saisi par l'utilisateur | Collecté avec consentement explicite |
+| `emotion` | Émotion sélectionnée (joy, sadness…) | Non identifiante |
+| `distress_level` | Niveau 0–4 calculé | Non identifiant |
+| `score_ml` | Score modèle 0.0–1.0 | Non identifiant |
+| `created_at` | Horodatage UTC | Non identifiant |
+
+**Aucune donnée stockée :** IP, identifiant utilisateur, session, navigateur, géolocalisation.
+
+### RGPD — conformité Art. 9
+
+- Consentement **explicite opt-in** (case à cocher, non pré-cochée)
+- Message clair sur les données collectées et leur usage
+- L'utilisateur peut continuer sans cocher — ses données ne sont pas envoyées
+- Row Level Security Supabase : écriture `service_role` uniquement
+- Script de migration : `scripts/supabase_migration.sql`
+
+### Démarrer avec Supabase (gratuit)
+
+1. Créer un projet sur [supabase.com](https://supabase.com) (gratuit, 500 MB)
+2. Exécuter `scripts/supabase_migration.sql` dans l'éditeur SQL Supabase
+3. Récupérer `Project URL` et `service_role key` (Settings → API)
+4. Ajouter dans Render : `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
 
 ### Pourquoi c'est précieux
 

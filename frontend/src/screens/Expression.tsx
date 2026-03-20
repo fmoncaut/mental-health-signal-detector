@@ -50,6 +50,7 @@ export default function Expression() {
   const secondaryLabels = emotionLabels.filter((_, i) => emotionIds[i] !== emotionId);
   const [text, setText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [consent, setConsent] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
 
@@ -85,6 +86,20 @@ export default function Expression() {
 
       if (res.ok) {
         const data = await res.json();
+        // Fire-and-forget feedback anonyme si consentement donné
+        if (consent) {
+          fetch(`${API_BASE}/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: text.trim(),
+              emotion: emotionId,
+              distress_level: data.distress_level ?? 0,
+              score_ml: data.score_distress ?? null,
+              consent: true,
+            }),
+          }).catch(() => {/* silencieux — ne bloque pas l'expérience */});
+        }
         navigate("/support", {
           state: {
             emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels,
@@ -252,6 +267,34 @@ export default function Expression() {
             autoFocus
           />
         </motion.div>
+
+        {/* Consentement RGPD opt-in — visible uniquement si du texte a été saisi */}
+        {text.trim().length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-4 p-4 bg-blue-50 rounded-2xl border border-blue-100"
+          >
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={isLoading}
+                className="mt-0.5 w-4 h-4 accent-teal-500 flex-shrink-0"
+              />
+              <span className="text-xs text-slate-600 leading-relaxed">
+                <strong className="text-slate-700">Aider d'autres personnes</strong>
+                {" "}— En cochant cette case, vous acceptez que le texte ci-dessus soit conservé
+                de façon <strong>anonyme</strong> pour améliorer notre capacité à détecter
+                les signaux de détresse et mieux accompagner les personnes qui en ont besoin.
+                {" "}<em>Seul le texte saisi sera conservé</em>, sans aucune information permettant de vous identifier.
+                Si vous préférez ne pas partager, vos données seront supprimées à la fin de cette session.
+              </span>
+            </label>
+          </motion.div>
+        )}
 
         <motion.button
           initial={{ opacity: 0, y: 20 }}
