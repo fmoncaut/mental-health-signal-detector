@@ -48,6 +48,7 @@ def normalize_text(text: str) -> str:
 CRITICAL_KEYWORDS_FR: list[str] = [
     # Idéation directe
     "je veux mourir", "envie de mourir", "j'ai envie de mourir",
+    "je voudrais mourir", "j'aimerais mourir",
     "je veux en finir", "en finir avec tout", "en finir avec la vie",
     "je ne veux plus vivre", "plus envie de vivre", "je veux disparaitre",
     "me suicider", "suicide", "me tuer", "me faire du mal",
@@ -56,12 +57,21 @@ CRITICAL_KEYWORDS_FR: list[str] = [
     "je suis un fardeau", "ca serait mieux sans moi", "tout irait mieux sans moi",
     "tout le monde serait mieux sans moi",
     "si je disparaissais personne s'en apercevrait",
+    "personne ne remarquerait si je mourais",
     "j'ai besoin de disparaitre",
     # Désespoir
     "plus de raison de vivre", "aucune raison de vivre",
     "je ne sers a rien a personne", "a quoi bon vivre",
     "plus de raison de continuer", "je ne veux plus etre la",
     "je ne veux plus rien",
+    # Idéation voilée — sévérité 4 (lexique signaux de crise)
+    "je voudrais ne pas me reveiller", "plus envie de me reveiller",
+    "j'aimerais ne pas me reveiller", "j'espere ne pas me reveiller",
+    "fatigue de vivre", "lasse de vivre", "las de vivre",
+    "je ne merite pas de vivre", "je ne merite pas detre la",
+    "je suis de trop", "je suis de trop dans ce monde",
+    "il ny a plus dissue", "il ny a plus de solution pour moi",
+    "personne ne peut maider",
 ]
 
 CRITICAL_KEYWORDS_EN: list[str] = [
@@ -70,6 +80,8 @@ CRITICAL_KEYWORDS_EN: list[str] = [
     "i dont want to live", "dont want to live", "i want to disappear",
     "kill myself", "i want to kill myself", "want to kill myself",
     "wanna kill myself", "i wanna die", "wanna die",
+    # Typo variants — "myself" omitted (e.g. "I want to kill me")
+    "i want to kill me", "want to kill me", "wanna kill me", "gonna kill me",
     "suicide", "suicidal", "hurt myself", "want to hurt myself",
     "cut myself", "end my life", "want to end my life",
     "take my life",
@@ -79,6 +91,14 @@ CRITICAL_KEYWORDS_EN: list[str] = [
     "world would be better without me", "no one would miss me",
     "nothing to live for", "cant go on anymore", "cant go on",
     "dont want to be here anymore",
+    # Veiled ideation — severity 4 (lexique signaux de crise)
+    "wish i was dead", "wish i were dead", "i wish i was dead",
+    "tired of living", "tired of being alive",
+    "better off dead", "i would be better off dead",
+    "dont want to wake up", "hope i dont wake up", "wish i wouldnt wake up",
+    "i dont deserve to live", "dont deserve to live",
+    "giving up on life", "i give up on life",
+    "no hope left", "theres no way out", "there is no way out",
 ]
 
 # Liste unifiée — source pour les exports vers content.py / predict.py

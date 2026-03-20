@@ -92,6 +92,61 @@ class TestCheckCritical:
     def test_en_better_off_without_me(self):
         assert check_critical("everyone would be better off without me")
 
+    # ── Typo variants — "myself" omis ────────────────────────────────────────
+    def test_en_typo_want_to_kill_me(self):
+        """'I want to kill me' (faute de frappe — 'myself' absent) doit être détecté."""
+        assert check_critical("I want to kill me")
+
+    def test_en_typo_wanna_kill_me(self):
+        assert check_critical("I wanna kill me")
+
+    def test_en_typo_gonna_kill_me(self):
+        assert check_critical("gonna kill me right now")
+
+    # ── Idéation voilée EN — sévérité 4 ──────────────────────────────────────
+    def test_en_veiled_wish_dead(self):
+        assert check_critical("I wish I was dead")
+
+    def test_en_veiled_tired_of_living(self):
+        assert check_critical("I'm so tired of living like this")
+
+    def test_en_veiled_better_off_dead(self):
+        assert check_critical("I'd be better off dead")
+
+    def test_en_veiled_dont_want_to_wake_up(self):
+        assert check_critical("I don't want to wake up tomorrow")
+
+    def test_en_veiled_no_hope_left(self):
+        assert check_critical("there is no hope left for me")
+
+    def test_en_veiled_no_way_out(self):
+        assert check_critical("I feel like there's no way out")
+
+    def test_en_veiled_dont_deserve_to_live(self):
+        assert check_critical("I don't deserve to live")
+
+    def test_en_veiled_giving_up_on_life(self):
+        assert check_critical("I'm giving up on life")
+
+    # ── Idéation voilée FR — sévérité 4 ──────────────────────────────────────
+    def test_fr_veiled_voudrais_mourir(self):
+        assert check_critical("je voudrais mourir")
+
+    def test_fr_veiled_ne_pas_me_reveiller(self):
+        assert check_critical("je voudrais ne pas me réveiller ce matin")
+
+    def test_fr_veiled_fatigue_de_vivre(self):
+        assert check_critical("je suis tellement fatigué de vivre")
+
+    def test_fr_veiled_de_trop(self):
+        assert check_critical("je suis de trop dans ce monde")
+
+    def test_fr_veiled_ne_merite_pas_de_vivre(self):
+        assert check_critical("je ne mérite pas de vivre")
+
+    def test_fr_veiled_personne_remarquerait(self):
+        assert check_critical("personne ne remarquerait si je mourais")
+
     # Cas négatifs — texte en détresse mais pas critique
     def test_negative_sadness(self):
         assert not check_critical("je me sens triste aujourd'hui")

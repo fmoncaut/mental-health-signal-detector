@@ -232,8 +232,19 @@ export default function Expression() {
             className="w-full h-full min-h-[320px] bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-300 transition-all text-gray-700 placeholder:text-gray-400 leading-relaxed disabled:opacity-60"
             autoFocus
           />
-          <div className="text-right text-xs text-gray-400 mt-2">
-            {text.length > 0 && `${text.length} caractères`}
+          <div className="flex items-center justify-between mt-2 px-1">
+            {text.length > 0 && text.length < 30 ? (
+              <p className="text-xs text-amber-500 font-medium">
+                {mode === "kids"
+                  ? "Tu peux en dire un peu plus — ça m'aide à mieux te comprendre 🙏"
+                  : "Un peu plus de détails nous aide à mieux vous accompagner."}
+              </p>
+            ) : (
+              <span />
+            )}
+            <span className="text-xs text-gray-400 ml-auto">
+              {text.length > 0 && `${text.length} caractères`}
+            </span>
           </div>
         </motion.div>
 

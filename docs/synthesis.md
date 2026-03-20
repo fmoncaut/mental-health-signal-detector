@@ -413,6 +413,7 @@ Le notebook `notebooks/shap_report.ipynb` génère deux visualisations exportée
 - **Certification** : envisager le marquage CE dispositif médical de classe I pour un usage en milieu scolaire ou hospitalier
 - **Multilinguisme** étendu : au-delà du FR/EN, notamment pour les populations migrantes
 - **Collecte de données validées** : pipeline opt-in + anonymisation pour créer un dataset FR en conditions réelles et alimenter les prochains entraînements — stratégie détaillée en section 9
+- **Renforcement clinique du filet de sécurité** : Tier VEILED (signaux sévérité 3), nouvelles dimensions cliniques (dissociation, symptômes psychotiques), score pondéré 1–5 — roadmap en section 10
 
 ### Posture technique actuelle
 
@@ -500,6 +501,103 @@ graph LR
 
 ---
 
+## 10. Stratégie de renforcement clinique *(implémentée le 2026-03-20)*
+
+> **Contexte :** La saisie "I want to kill me" (faute de frappe — *myself* omis) après sélection d'un emoji positif produisait un résultat non-critique. Analyse causale et correctifs issus de deux ressources cliniques : *Glossaire santé mentale clinique* (63 termes FR/EN) et *Lexique de détection des signaux de crise* (60 expressions, sévérité 1–5).
+
+### Analyse causale
+
+| Couche | Cause | Impact |
+|--------|-------|--------|
+| **Keyword miss** | `"kill myself"` ≠ substring de `"i want to kill me"` → `check_critical()` retourne `False` | Chemin CRITICAL bypassé |
+| **ML faible** | 19 caractères → peu de tokens → score ML ≈ 0.2 | Score sous-estimé |
+| **Seuil masquage trop haut** | `mlScore > 0.25` requis pour déclencher le bonus +0.20 | 0.2 < 0.25 → pas de bonus |
+| **Emoji positif** | Floor joie = 0.0, pas de plancher de sécurité montant | Score final ≈ 0.2 → *light* |
+
+### Stratégie de réponse — 4 couches
+
+```
+COUCHE L1 — Enrichissement des mots-clés (priorité absolue)
+  ├── Variantes typo EN : "want to kill me", "wanna kill me", "gonna kill me"
+  │   ← "I want to kill me" désormais détecté CRITICAL
+  ├── Idéation voilée EN sévérité 4 (lexique signaux de crise) :
+  │   "wish i was dead", "tired of living", "better off dead",
+  │   "dont want to wake up", "no hope left", "there is no way out",
+  │   "dont deserve to live", "giving up on life"
+  ├── Idéation directe FR enrichie :
+  │   "je voudrais mourir", "j'aimerais mourir"
+  └── Idéation voilée FR sévérité 4 :
+      "voudrais ne pas me reveiller", "fatigue de vivre",
+      "je suis de trop", "je ne merite pas de vivre",
+      "personne ne remarquerait si je mourais"
+
+COUCHE L2 — Seuil de masquage émotion/texte
+  ├── Avant : mlScore > 0.25 → bonus +0.20 (texte court ignoré)
+  └── Après : mlScore > 0.15 → bonus +0.20 (couvre les scores faibles sur texte court)
+
+COUCHE L3 — UX nudge texte court
+  ├── Si text.length ∈ ]0, 30[ → message d'encouragement ambré affiché
+  │   EN : "A little more detail helps us support you better."
+  │   FR kids : "Tu peux en dire un peu plus — ça m'aide à mieux te comprendre 🙏"
+  └── Non-bloquant : la soumission reste possible
+
+COUCHE L4 — Roadmap (non implémentée)
+  ├── Tier VEILED : entre YELLOW et RED pour signaux sévérité 3
+  │   (isolement social, désespoir sans idéation directe)
+  ├── Nouvelles dimensions cliniques depuis le glossaire :
+  │   dissociation, symptômes psychotiques, somatisation
+  ├── Score pondéré sévérité 1–5 (vs binaire critique/non-critique)
+  └── Validation clinique externe du lexique par professionnel de santé mentale
+```
+
+### Couverture après correctifs
+
+| Expression | Avant | Après |
+|------------|-------|-------|
+| "I want to kill me" | ❌ *light* | ✅ CRITICAL |
+| "I want to kill myself" | ✅ CRITICAL | ✅ CRITICAL |
+| "wish I was dead" | ❌ *light* | ✅ CRITICAL |
+| "I'm tired of living" | ❌ *light* | ✅ CRITICAL |
+| "there's no way out" | ❌ *light* | ✅ CRITICAL |
+| "better off dead" | ❌ *light* | ✅ CRITICAL |
+| "je voudrais ne pas me réveiller" | ❌ *light* | ✅ CRITICAL |
+| "je suis de trop dans ce monde" | ❌ *light* | ✅ CRITICAL |
+| "je ne mérite pas de vivre" | ❌ *light* | ✅ CRITICAL |
+| Emoji positif + texte court distressant | ❌ score ≤ 0.2 | ✅ bonus masquage déclenché dès 0.15 |
+
+### Tests ajoutés
+
+17 nouveaux cas de test dans `tests/training/test_predict.py` — 167 tests passent en 4.67s.
+
+```
+TestCheckCritical
+  ├── test_en_typo_want_to_kill_me       # cas exact du bug rapporté
+  ├── test_en_typo_wanna_kill_me
+  ├── test_en_typo_gonna_kill_me
+  ├── test_en_veiled_wish_dead
+  ├── test_en_veiled_tired_of_living
+  ├── test_en_veiled_better_off_dead
+  ├── test_en_veiled_dont_want_to_wake_up
+  ├── test_en_veiled_no_hope_left
+  ├── test_en_veiled_no_way_out
+  ├── test_en_veiled_dont_deserve_to_live
+  ├── test_en_veiled_giving_up_on_life
+  ├── test_fr_veiled_voudrais_mourir
+  ├── test_fr_veiled_ne_pas_me_reveiller
+  ├── test_fr_veiled_fatigue_de_vivre
+  ├── test_fr_veiled_de_trop
+  ├── test_fr_veiled_ne_merite_pas_de_vivre
+  └── test_fr_veiled_personne_remarquerait
+```
+
+### Référence clinique
+
+Les ajouts de la couche L1 correspondent aux catégories **Idéation suicidaire directe (sévérité 5)** et **Idéation suicidaire voilée (sévérité 4)** du *Lexique de détection des signaux de crise*, enrichi par les expressions cliniquement validées du *Glossaire santé mentale clinique* (Désespoir, Estime de soi effondrée, Dissociation).
+
+La couche L4 (roadmap) intégrera les catégories de sévérité 1–3 du lexique (Symptômes végétatifs, Anxiété/panique, Conduites d'évitement) sous forme de score pondéré — sans les escalader en CRITICAL, mais en garantissant un triage YELLOW minimum.
+
+---
+
 ## Annexe — Code review 2026-03-20 (commit e7bb95e)
 
 Audit complet 6 phases (Python + TypeScript). 15 correctifs appliqués, 150/150 tests passent.
@@ -527,4 +625,4 @@ Audit complet 6 phases (Python + TypeScript). 15 correctifs appliqués, 150/150 
 
 *Certitudes : basées sur le code source analysé. Hypothèses signalées par "Déduit". Inconnues : métriques de performance en production réelle, volume d'utilisateurs actifs, validation clinique externe.*
 
-*Document généré le 2026-03-19. Mis à jour le 2026-03-19 : résultats DistilBERT v2 validés, déploiement effectué, seuil prod ajusté à 0.65. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité, 348 tests.*
+*Document généré le 2026-03-19. Mis à jour le 2026-03-19 : résultats DistilBERT v2 validés, déploiement effectué, seuil prod ajusté à 0.65. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité, 348 tests. Mis à jour le 2026-03-20 : stratégie de renforcement clinique (section 10) — 17 nouveaux mots-clés sévérité 4-5 (typos + idéation voilée), seuil masquage 0.25→0.15, nudge UX texte court. 167 tests.*

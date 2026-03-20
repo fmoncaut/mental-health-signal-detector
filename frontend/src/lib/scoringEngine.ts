@@ -33,6 +33,7 @@ export const CRITICAL_KEYWORDS = [
   // FR — idéation directe
   "suicide", "suicider", "me suicider", "me tuer", "mourir",
   "plus envie de vivre", "envie de mourir", "jai envie de mourir",
+  "je voudrais mourir", "jaimerais mourir",
   "pensees suicidaires", "je veux mourir", "je veux en finir",
   "en finir avec tout", "en finir avec la vie", "en finir",
   "me supprimer", "disparaitre", "je veux disparaitre",
@@ -47,9 +48,20 @@ export const CRITICAL_KEYWORDS = [
   "si je disparaissais personne sen apercevrait",
   "personne ne remarquerait si je disparaissais",
   "jai besoin de disparaitre",
+  // FR — idéation voilée — sévérité 4 (lexique signaux de crise)
+  "je voudrais ne pas me reveiller", "plus envie de me reveiller",
+  "jaimerais ne pas me reveiller", "jespere ne pas me reveiller",
+  "fatigue de vivre", "lasse de vivre", "las de vivre",
+  "je ne merite pas de vivre", "je ne merite pas detre la",
+  "je suis de trop", "je suis de trop dans ce monde",
+  "il ny a plus dissue", "il ny a plus de solution pour moi",
+  "personne ne peut maider",
+  "personne ne remarquerait si je mourais",
   // EN — direct suicidal ideation
   "kill myself", "i want to kill myself", "want to kill myself",
   "wanna kill myself", "gonna kill myself",
+  // EN — typo variants ("myself" omitted — e.g. "I want to kill me")
+  "i want to kill me", "want to kill me", "wanna kill me", "gonna kill me",
   "end my life", "want to end my life", "i want to end my life",
   "i want to end it", "want to end it all",
   "take my life", "take my own life",
@@ -65,6 +77,14 @@ export const CRITICAL_KEYWORDS = [
   "no point in living", "no point living",
   "dont want to live", "i dont want to live",
   "dont want to be here anymore",
+  // EN — veiled ideation — severity 4 (crisis signal lexicon)
+  "wish i was dead", "wish i were dead", "i wish i was dead",
+  "tired of living", "tired of being alive",
+  "better off dead", "i would be better off dead",
+  "dont want to wake up", "hope i dont wake up", "wish i wouldnt wake up",
+  "i dont deserve to live", "dont deserve to live",
+  "giving up on life", "i give up on life",
+  "no hope left", "theres no way out", "there is no way out",
 ];
 
 // ─── Seuils de triage clinique ───────────────────────────────────────────────
@@ -193,8 +213,10 @@ export function computeFinalScore(
   const floor = EMOTION_FLOOR[emotionId] ?? 0.0;
 
   // Détection de masquage émotion/texte : émotion positive + texte distressant
+  // Seuil abaissé à 0.15 (vs 0.25) pour capturer les textes courts où le ML
+  // sous-estime la détresse (peu de tokens → score modéré même sur contenu grave).
   const isPositiveEmotion = floor < 0.2;
-  const isMasking = isPositiveEmotion && mlScore > 0.25;
+  const isMasking = isPositiveEmotion && mlScore > 0.15;
   const mlAdjusted = Math.min(1.0, mlScore + (isMasking ? 0.20 : 0));
 
   const blended = selfScore !== null
