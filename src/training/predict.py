@@ -1,6 +1,6 @@
 """
 Inférence : charge le modèle et prédit sur un texte.
-Supporte le baseline (pkl) et DistilBERT (HuggingFace).
+Supporte le baseline (pkl), DistilBERT et Mental-RoBERTa.
 """
 
 from pathlib import Path
@@ -87,6 +87,55 @@ def load_model(model_type: str = "baseline"):
         model = AutoModelForSequenceClassification.from_pretrained(settings.model_path_v3)
         model.eval()
         return {"tokenizer": tokenizer, "model": model}
+    elif model_type == "mental_roberta":
+        import io
+        import pickle
+
+        import torch
+        import transformers.models.roberta.modeling_roberta as _rob
+        from transformers import AutoTokenizer, RobertaConfig, RobertaForSequenceClassification
+        from transformers.models.roberta.modeling_roberta import RobertaSelfAttention
+
+        # Stub de compatibilité : mental-roberta-base a été sauvé avec transformers 4.x
+        # qui utilisait RobertaSdpaSelfAttention (absent de transformers 5.x).
+        class _RobertaSdpaSelfAttention(RobertaSelfAttention):
+            pass
+
+        _rob.RobertaSdpaSelfAttention = _RobertaSdpaSelfAttention
+
+        class _CPUUnpickler(pickle.Unpickler):
+            def find_class(self, module, name):
+                if module == "torch.storage" and name == "_load_from_bytes":
+                    return lambda b: torch.load(
+                        io.BytesIO(b), map_location="cpu", weights_only=False
+                    )
+                return super().find_class(module, name)
+
+        pkl_path = _MODELS_DIR / "mental_roberta_base.pkl"
+        if not pkl_path.resolve().is_relative_to(_MODELS_DIR.resolve()):
+            raise ValueError(f"Chemin modèle non autorisé : {pkl_path}")
+        if not pkl_path.exists():
+            raise FileNotFoundError(f"Fichier modèle introuvable : {pkl_path}")
+
+        with pkl_path.open("rb") as f:
+            old_model = _CPUUnpickler(f).load()
+        state_dict = old_model.state_dict()
+        del old_model
+
+        # Config calquée sur les dimensions réelles du state_dict de mental-roberta-base
+        config = RobertaConfig(
+            num_labels=2,
+            max_position_embeddings=514,
+            type_vocab_size=1,
+            pad_token_id=1,
+            bos_token_id=0,
+            eos_token_id=2,
+        )
+        roberta = RobertaForSequenceClassification(config)
+        roberta.load_state_dict(state_dict, strict=False)
+        roberta.eval()
+        tokenizer = AutoTokenizer.from_pretrained("roberta-base")
+        return {"tokenizer": tokenizer, "model": roberta}
     else:
         raise ValueError(f"model_type inconnu : {model_type}")
 
@@ -166,7 +215,11 @@ def predict(text: str, model=None, model_type: str = "baseline") -> dict:
         with torch.no_grad():
             logits = bert(**inputs).logits
         proba = torch.softmax(logits, dim=-1)[0].tolist()
-        label = int(proba[1] > 0.65)   # seuil relevé à 0.65 : corrige la sur-prédiction classe 1
+        # Seuils par modèle (optimisés sur dataset Reddit, 2000 samples stratifiés) :
+        # - distilbert / mental_bert_v3 : 0.65 (corrige sur-prédiction classe 1)
+        # - mental_roberta : 0.30 (maximise recall clinique — AUC 0.964, F1 0.916)
+        threshold = 0.30 if model_type == "mental_roberta" else 0.65
+        label = int(proba[1] > threshold)
         score = float(proba[1])
 
     logger.debug(f"Prédiction [{model_type}] lang={detected_lang} → label={label}, score={score:.3f}")
