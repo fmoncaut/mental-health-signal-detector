@@ -36,13 +36,12 @@ src/
 
 ## Modèles
 
-| Modèle | Dataset | Accuracy | F1 Macro | Sensitivité | Notes |
-|--------|---------|----------|----------|-------------|-------|
-| Baseline TF-IDF + LR | 388K | 88.9% | — | — | Référence prod slim |
-| DistilBERT v1 | DAIR-AI 16K | 96.8% | — | — | Fine-tuning initial |
-| **DistilBERT v2** | **388K combiné** | **89.0%** | **86.5%** | — | **Champion prod GPU** |
-| DistilBERT v2.1 *(évalué)* | 388K + EarlyStop | — | 86.06% | — | eval_loss ↑ — rejeté |
-| **Mental-BERT v3** ✨ | **Kaggle 100K + eRisk25 (clinique)** | **92.7%** | **92.5%** | **95.9%** | **AUC-ROC 98.2% · model_type=mental_bert_v3** |
+| Modèle | Dataset | Accuracy | F1 Macro | Recall | AUC-ROC | Notes |
+|--------|---------|----------|----------|--------|---------|-------|
+| Baseline TF-IDF + LR | 388K | 86.9% | 86.9% | 86.7% | 0.930 | Prod slim · 0.25ms · seuil 0.50 |
+| DistilBERT v2 | 388K combiné | 88.8% | 88.8% | 87.4% | 0.952 | HF: FabriceM/mh-distilbert-v2 · seuil 0.65 |
+| Mental-BERT v3 | Kaggle 100K + eRisk25 | 92.7% | 92.5% | 95.9% | 0.982 | GPU requis · AUC 98.2% |
+| **Mental-RoBERTa** ✨ | **Reddit 2K évaluation** | **91.6%** | **91.6%** | **89.1%** | **0.964** | **HF: FabriceM/mh-mental-roberta · seuil 0.30** |
 
 DistilBERT v2 — résultats Colab T4 GPU (3 epochs, batch=32) :
 
@@ -258,7 +257,7 @@ Améliorations v2.1 intégrées dans le notebook :
 | Low | Erreur runtime possible si payload Anthropic inattendu | Parsing défensif du bloc texte + timeout externe | `src/api/analyze_router.py` |
 | Low | Headers incomplets côté API | `Permissions-Policy` + `Content-Security-Policy` ajoutés | `src/api/main.py` |
 
-### Posture actuelle — `ruff` ✅ · `pip-audit` ✅ (1 exception documentée) · 117/117 tests ✅
+### Posture actuelle — `ruff` ✅ · `pip-audit` ✅ (1 exception documentée) · 188/188 tests ✅
 
 ---
 
@@ -276,7 +275,7 @@ npm run test:e2e                 # 18 tests Playwright (happy path, crisis flow)
 ruff check src/
 ```
 
-**Total : 180 Vitest + 18 Playwright + 117 pytest = 315 tests ✅**
+**Total : 180 Vitest + 18 Playwright + 188 pytest = 386 tests ✅**
 
 CI GitHub Actions sur push → branche Fabrice ✅
 
@@ -298,13 +297,17 @@ docker run -p 8000:8000 \
 
 **Images disponibles :**
 
-| Image | Taille | Stack | Modèles |
-|-------|--------|-------|---------|
-| `Dockerfile.api.slim` | ~600 MB | baseline TF-IDF+LR | `baseline.joblib` baked in |
-| `Dockerfile.api` (`mh-api-full:v3`) | ~3.2 GB | PyTorch CPU-only + transformers | Volume mount requis |
-| `Dockerfile.frontend` | ~50 MB | nginx multi-stage | — |
+| Image | Taille | Stack | Modèles | Plan Render |
+|-------|--------|-------|---------|-------------|
+| `Dockerfile.api.slim` | ~600 MB | baseline TF-IDF+LR | `baseline.joblib` baked in | Free ✅ |
+| `Dockerfile.api.distilbert` | ~1.5 GB | PyTorch CPU + DistilBERT | HF Hub download au démarrage | Starter $7/mois |
+| `Dockerfile.api.roberta` | ~2 GB | PyTorch CPU + Mental-RoBERTa | HF: FabriceM/mh-mental-roberta | Starter $7/mois |
+| `Dockerfile.api` | ~3.2 GB | PyTorch CPU + Mental-BERT v3 | Volume mount requis | GPU requis |
+| `Dockerfile.frontend` | ~50 MB | nginx multi-stage | — | — |
 
-> **Note :** `models/fine_tuned/` et `models/fine_tuned_v3/` sont exclus du build context (`.dockerignore`) — montez-les avec `-v $(pwd)/models:/app/models`.
+> **Note :** `models/fine_tuned/`, `models/fine_tuned_v2/` et `models/fine_tuned_v3/` sont exclus du build context (`.dockerignore`) — montez-les avec `-v $(pwd)/models:/app/models`.
+>
+> Pour activer Mental-RoBERTa sur Render : `dockerfilePath: ./docker/Dockerfile.api.roberta` + variables `HF_REPO_ID=FabriceM/mh-mental-roberta`, `HF_TOKEN`, `MODEL_TYPE=mental_roberta`.
 
 ---
 
