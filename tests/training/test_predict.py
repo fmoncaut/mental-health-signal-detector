@@ -185,6 +185,37 @@ class TestSafeLoadJoblib:
             _safe_load_joblib(missing)
 
 
+class TestModelFileHashValidation:
+    def test_invalid_hash_format_raises(self, tmp_path):
+        from src.training.predict import _validate_file_sha256
+
+        model_file = tmp_path / "model.pkl"
+        model_file.write_bytes(b"abc")
+
+        with pytest.raises(ValueError, match="Hash SHA-256 invalide"):
+            _validate_file_sha256(model_file, "xyz")
+
+    def test_hash_mismatch_raises(self, tmp_path):
+        from src.training.predict import _validate_file_sha256
+
+        model_file = tmp_path / "model.pkl"
+        model_file.write_bytes(b"abc")
+        bad_sha = "0" * 64
+
+        with pytest.raises(ValueError, match="SHA-256 mismatch"):
+            _validate_file_sha256(model_file, bad_sha)
+
+    def test_hash_match_passes(self, tmp_path):
+        from src.training.predict import _validate_file_sha256
+
+        model_file = tmp_path / "model.pkl"
+        model_file.write_bytes(b"abc")
+        # sha256("abc")
+        good_sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+
+        _validate_file_sha256(model_file, good_sha)
+
+
 # ---------------------------------------------------------------------------
 # load_model — type inconnu
 # ---------------------------------------------------------------------------

@@ -348,7 +348,7 @@ class TestPromptInjectionPrevention:
 # ─── B3 : IP extraite de X-Forwarded-For ────────────────────────────────────
 
 class TestClientIpExtraction:
-    """_get_client_ip doit préférer X-Forwarded-For à l'IP socket."""
+    """_get_client_ip doit utiliser X-Forwarded-For uniquement si le proxy est de confiance."""
 
     def _make_request(self, headers: dict) -> MagicMock:
         req = MagicMock()
@@ -362,12 +362,16 @@ class TestClientIpExtraction:
         """
         from src.api.rate_limit import _get_client_ip
         req = self._make_request({"X-Forwarded-For": "1.2.3.4, 10.0.0.1, 172.16.0.1"})
-        assert _get_client_ip(req) == "172.16.0.1"
+        with patch("src.api.rate_limit.get_settings") as mock_settings:
+            mock_settings.return_value.trust_proxy_headers = True
+            assert _get_client_ip(req) == "172.16.0.1"
 
     def test_strips_whitespace(self):
         from src.api.rate_limit import _get_client_ip
         req = self._make_request({"X-Forwarded-For": "5.6.7.8,  10.0.0.1  "})
-        assert _get_client_ip(req) == "10.0.0.1"
+        with patch("src.api.rate_limit.get_settings") as mock_settings:
+            mock_settings.return_value.trust_proxy_headers = True
+            assert _get_client_ip(req) == "10.0.0.1"
 
     def test_falls_back_to_socket_ip_when_header_absent(self):
         from src.api.rate_limit import _get_client_ip
@@ -375,7 +379,10 @@ class TestClientIpExtraction:
         req.headers = {}
         req.client.host = "9.8.7.6"
         # Sans header, get_remote_address est appelé
-        with patch("src.api.rate_limit.get_remote_address", return_value="9.8.7.6"):
+        with patch("src.api.rate_limit.get_settings") as mock_settings, patch(
+            "src.api.rate_limit.get_remote_address", return_value="9.8.7.6"
+        ):
+            mock_settings.return_value.trust_proxy_headers = True
             ip = _get_client_ip(req)
         assert ip == "9.8.7.6"
 
@@ -384,6 +391,20 @@ class TestClientIpExtraction:
         req = MagicMock()
         req.headers = {"X-Forwarded-For": ""}
         req.client.host = "9.8.7.6"
-        with patch("src.api.rate_limit.get_remote_address", return_value="9.8.7.6"):
+        with patch("src.api.rate_limit.get_settings") as mock_settings, patch(
+            "src.api.rate_limit.get_remote_address", return_value="9.8.7.6"
+        ):
+            mock_settings.return_value.trust_proxy_headers = True
+            ip = _get_client_ip(req)
+        assert ip == "9.8.7.6"
+
+    def test_ignores_forwarded_for_when_proxy_untrusted(self):
+        from src.api.rate_limit import _get_client_ip
+
+        req = self._make_request({"X-Forwarded-For": "1.2.3.4, 10.0.0.1"})
+        with patch("src.api.rate_limit.get_settings") as mock_settings, patch(
+            "src.api.rate_limit.get_remote_address", return_value="9.8.7.6"
+        ):
+            mock_settings.return_value.trust_proxy_headers = False
             ip = _get_client_ip(req)
         assert ip == "9.8.7.6"

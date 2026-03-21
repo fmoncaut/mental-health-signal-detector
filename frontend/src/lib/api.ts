@@ -9,5 +9,17 @@ export const API_BASE = import.meta.env.VITE_API_URL ?? "";
  * Modèle NLP pour /predict.
  * - "baseline" → TF-IDF + LR (Render slim, défaut prod)
  * - "distilbert" → DistilBERT fine-tuned (local avec modèle)
+ * - "mental_bert_v3" → Mental-BERT v3
+ * - "mental_roberta" → Mental-RoBERTa
  */
-export const MODEL_TYPE = (import.meta.env.VITE_MODEL_TYPE as string) ?? "baseline";
+const SUPPORTED_MODEL_TYPES = new Set([
+	"baseline",
+	"distilbert",
+	"mental_bert_v3",
+	"mental_roberta",
+]);
+
+const envModelType = (import.meta.env.VITE_MODEL_TYPE as string | undefined)?.trim();
+export const MODEL_TYPE = envModelType && SUPPORTED_MODEL_TYPES.has(envModelType)
+	? envModelType
+	: "baseline";
