@@ -58,6 +58,20 @@ PHASE 8 — Code Review Copilot — sécurité API  (semaine 5)
   ├── Validation payload feedback : text_not_blank + emotion_allowlist (8 valeurs)
   ├── Analyze endpoint : timeout=10s Anthropic + parsing défensif ContentBlock
   └── 188 tests (+ 21 nouveaux — test_feedback_router.py)
+
+PHASE 9 — Mental-RoBERTa + Évaluation comparative (semaine 6)
+  ├── 4 modèles reçus de Stanislas (Drive) : lr_model.pkl, tfidf_vectorizer.pkl,
+  │   distilbert_model.pkl (256 Mo), mental_roberta_base.pkl (476 Mo)
+  ├── Évaluation sur 2000 samples stratifiés (Reddit Depression dataset) :
+  │     Baseline LR      : Accuracy 0.868  Recall 0.867  F1 0.868  AUC 0.930  0.25ms
+  │     DistilBERT       : Accuracy 0.888  Recall 0.874  F1 0.888  AUC 0.952  66ms
+  │     Mental-RoBERTa   : Accuracy 0.916  Recall 0.891  F1 0.916  AUC 0.964  144ms ✅
+  ├── Optimisation seuil RoBERTa : 0.50 → 0.30 (Recall +3.3pts, F1 +1.2pts)
+  ├── Intégration predict.py : CPUUnpickler + stub RobertaSdpaSelfAttention (compat 4.x→5.x)
+  ├── Config calquée sur dims réelles (max_position=514, type_vocab=1)
+  ├── Upload HF Hub : FabriceM/mh-mental-roberta (privé)
+  ├── Dockerfile.api.roberta + entrypoint.roberta.sh + requirements.roberta.txt
+  └── Prod : maintenu sur baseline (Free tier Render — RoBERTa nécessite Starter $7/mois)
 ```
 
 ---
@@ -94,6 +108,7 @@ graph TB
     subgraph MLREADY["ML en réserve (prêt, non déployé)"]
         DB2["DistilBERT v2\nF1M 85.9% · ~3s CPU\nHuggingFace Hub"]
         MB3["Mental-BERT v3\nRecall 95.9% · GPU requis\nGoogle Drive"]
+        MR["Mental-RoBERTa\nF1 0.916 · AUC 0.964 · seuil 0.30\nHF: FabriceM/mh-mental-roberta"]
     end
 
     U --> FE
