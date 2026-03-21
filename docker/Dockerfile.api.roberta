@@ -1,0 +1,52 @@
+# Dockerfile.api.roberta — Mental-RoBERTa-base fine-tuned
+#
+# Performances (2000 samples, Reddit Depression dataset) :
+#   Accuracy 0.916 · Recall 0.891 · F1 Macro 0.916 · AUC-ROC 0.964
+#   Seuil décision : 0.30 (optimisé recall clinique)
+#
+# Prérequis Render :
+#   - plan: starter ($7/mois min, 512 Mo RAM — 1 Go recommandé)
+#   - Env vars dans le dashboard Render :
+#       HF_REPO_ID   = TON_USERNAME/mh-mental-roberta
+#       HF_TOKEN     = hf_xxxxxxxxxxxx  (token HuggingFace si repo privé)
+#       MODEL_TYPE   = mental_roberta
+#
+# Préparation du modèle (upload pkl vers HF Hub) :
+#   huggingface-cli upload TON_USERNAME/mh-mental-roberta \
+#       models/mental_roberta_base.pkl mental_roberta_base.pkl
+#
+# Le pkl (~476 Mo) est téléchargé au premier démarrage depuis HF Hub.
+# Le tokenizer roberta-base (~500 Ko) est mis en cache dans l'image.
+# Les démarrages suivants utilisent le cache (Render persistent disk).
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/requirements.roberta.txt .
+RUN pip install --no-cache-dir -r requirements.roberta.txt
+
+# Pré-cache le tokenizer roberta-base (500 Ko, pas de restriction HF)
+RUN python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('roberta-base')"
+
+COPY src/ ./src/
+COPY configs/ ./configs/
+COPY models/baseline.joblib ./models/
+COPY docker/entrypoint.roberta.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+ENV PYTHONPATH=/app
+ENV PORT=8000
+ENV MODEL_TYPE=mental_roberta
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+CMD ["./entrypoint.sh"]
