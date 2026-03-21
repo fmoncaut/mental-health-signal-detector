@@ -22,10 +22,7 @@ scikit-learn>=1.5.0
 joblib>=1.4.0
 numpy>=1.26.0
 
-# ML Mental-RoBERTa
-# Note : le modèle pkl a été entraîné avec transformers 4.x ; le stub
-# RobertaSdpaSelfAttention dans predict.py assure la compat avec 5.x.
-torch==2.3.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+# ML Mental-RoBERTa (torch installé séparément dans le Dockerfile via index PyTorch)
 transformers>=4.41.2
 huggingface_hub>=0.24.0
 
