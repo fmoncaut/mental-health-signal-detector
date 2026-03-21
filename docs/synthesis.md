@@ -58,6 +58,20 @@ PHASE 8 — Code Review Copilot — sécurité API  (semaine 5)
   ├── Validation payload feedback : text_not_blank + emotion_allowlist (8 valeurs)
   ├── Analyze endpoint : timeout=10s Anthropic + parsing défensif ContentBlock
   └── 188 tests (+ 21 nouveaux — test_feedback_router.py)
+
+PHASE 9 — Mental-RoBERTa + Évaluation comparative (semaine 6)
+  ├── 4 modèles pkl reçus et évalués sur 2000 samples stratifiés
+  ├── Mental-RoBERTa champion : Accuracy 91.6%, Recall 89.1%, F1 91.6%, AUC 0.964
+  ├── Seuil optimisé 0.50 → 0.30 (grid search recall clinique)
+  ├── Upload HF Hub : FabriceM/mh-mental-roberta + Dockerfile.api.roberta prêt
+  └── Prod maintenu baseline slim (Free tier) — Starter $7/mois pour RoBERTa
+
+PHASE 10 — Code Review 5 — cohérence API + sécurité pickle (semaine 6)
+  ├── M1 : mental_roberta manquant du Literal model_type → 422 corrigé (schemas.py)
+  ├── M2 : trust_proxy_headers conditionné au flag config — anti-spoof X-Forwarded-For
+  ├── M3 : validation SHA-256 optionnelle chargement pickle RoBERTa (fail-closed)
+  ├── L1 : allowlist stricte VITE_MODEL_TYPE + fallback baseline (frontend/api.ts)
+  └── 193 tests (+ 5 nouveaux) · Score sécurité 8.6 → 9.2/10
 ```
 
 ---
@@ -738,6 +752,17 @@ Audit complet 6 phases (Python + TypeScript). 15 correctifs appliqués, 150/150 
 
 **Score global code avant → après : 7.2/10 → 8.6/10**
 
+### Code Review 5 — cohérence mental_roberta + trust_proxy + intégrité pickle (2026-03-21)
+
+| Ref | Fichier | Criticité | Correctif |
+|-----|---------|-----------|-----------|
+| M1 | `src/api/schemas.py` | Medium | `mental_roberta` ajouté au `Literal` model_type (422 évité) |
+| M2 | `src/api/rate_limit.py` | Medium | `trust_proxy_headers` flag explicite — lecture `X-Forwarded-For` conditionnée |
+| M3 | `src/training/predict.py` | Medium | `_validate_file_sha256()` — fail-closed si `model_sha256_roberta` configuré |
+| L1 | `frontend/src/lib/api.ts` | Low | Allowlist `SUPPORTED_MODEL_TYPES` + fallback `baseline` |
+
+**Score global : 8.6/10 → 9.2/10 · Tests : 193/193 pytest ✅**
+
 ---
 
-*Document généré le 2026-03-19. Mis à jour le 2026-03-20 : code review 15 correctifs sécurité (348 tests), renforcement clinique Phase 7 (365 tests), Phase 8 collecte anonyme Supabase, code review 10 correctifs sécurité & RGPD — score 8.6/10, code review Copilot : CORS durci, Permissions-Policy/CSP, anti-SSRF Supabase, validation payload feedback, timeout Anthropic — 188 tests pytest, 386 tests total. Merge en production (main → Render + Vercel).*
+*Document généré le 2026-03-19. Mis à jour le 2026-03-21 : Phase 9 Mental-RoBERTa (F1 0.916, AUC 0.964, seuil 0.30, HF Hub), Phase 10 Code Review 5 — 4 correctifs Medium/Low, 193 tests pytest, 386 tests total. Score sécurité 9.2/10.*
