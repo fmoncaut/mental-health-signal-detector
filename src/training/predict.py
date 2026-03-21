@@ -3,6 +3,7 @@ Inférence : charge le modèle et prédit sur un texte.
 Supporte le baseline (pkl), DistilBERT et Mental-RoBERTa.
 """
 
+import hashlib
 from pathlib import Path
 
 import joblib
@@ -17,6 +18,35 @@ from src.training.preprocess import clean_text
 # Utilise __file__ (indépendant du CWD au démarrage) pour pointer vers
 # <project_root>/models/, quel que soit le répertoire de lancement du process.
 _MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "models"
+
+
+def _resolve_model_path_in_models_dir(raw_path: str) -> Path:
+    """Resolve a configured model path and ensure it stays inside ``models/``."""
+    candidate = Path(raw_path).expanduser()
+    if not candidate.is_absolute():
+        project_root = _MODELS_DIR.parent
+        candidate = project_root / candidate
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(_MODELS_DIR.resolve()):
+        raise ValueError(f"Chemin modèle non autorisé : {resolved}")
+    return resolved
+
+
+def _validate_file_sha256(path: Path, expected_hex: str) -> None:
+    """Validate file SHA-256 digest against an expected hex string."""
+    expected = expected_hex.strip().lower()
+    if not expected:
+        return
+    if len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
+        raise ValueError("Hash SHA-256 invalide pour model_sha256_roberta (64 hex attendus)")
+
+    hasher = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    actual = hasher.hexdigest()
+    if actual != expected:
+        raise ValueError("Intégrité modèle roberta invalide (SHA-256 mismatch)")
 
 
 def _safe_load_joblib(path: Path):
@@ -111,11 +141,10 @@ def load_model(model_type: str = "baseline"):
                     )
                 return super().find_class(module, name)
 
-        pkl_path = _MODELS_DIR / "mental_roberta_base.pkl"
-        if not pkl_path.resolve().is_relative_to(_MODELS_DIR.resolve()):
-            raise ValueError(f"Chemin modèle non autorisé : {pkl_path}")
+        pkl_path = _resolve_model_path_in_models_dir(settings.model_path_roberta)
         if not pkl_path.exists():
             raise FileNotFoundError(f"Fichier modèle introuvable : {pkl_path}")
+        _validate_file_sha256(pkl_path, settings.model_sha256_roberta)
 
         with pkl_path.open("rb") as f:
             old_model = _CPUUnpickler(f).load()

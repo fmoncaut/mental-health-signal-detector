@@ -257,6 +257,15 @@ Améliorations v2.1 intégrées dans le notebook :
 | Low | Erreur runtime possible si payload Anthropic inattendu | Parsing défensif du bloc texte + timeout externe | `src/api/analyze_router.py` |
 | Low | Headers incomplets côté API | `Permissions-Policy` + `Content-Security-Policy` ajoutés | `src/api/main.py` |
 
+### Revue 5 — cohérence modèle & anti-spoof rate-limit (2026-03-21)
+
+| Criticité | Finding | Correction | Fichier |
+|-----------|---------|-----------|---------|
+| Medium | Incohérence API: `mental_roberta` supporté backend mais rejeté validation `/predict` | `PredictRequest.model_type` migré vers `Literal` incluant `mental_roberta` | `src/api/schemas.py` |
+| Medium | Spoof possible de `X-Forwarded-For` si service exposé sans proxy de confiance | Lecture `X-Forwarded-For` conditionnée par `trust_proxy_headers=true` | `src/api/rate_limit.py`, `src/common/config.py` |
+| Medium | Désérialisation pickle RoBERTa (risque de tampering du fichier) | Vérification d'intégrité SHA-256 optionnelle + confinement du chemin au dossier `models/` | `src/training/predict.py`, `src/common/config.py` |
+| Low | Frontend accepte n'importe quelle valeur `VITE_MODEL_TYPE` | Allowlist stricte côté client + fallback `baseline` | `frontend/src/lib/api.ts` |
+
 ### Posture actuelle — `ruff` ✅ · `pip-audit` ✅ (1 exception documentée) · 188/188 tests ✅
 
 ---

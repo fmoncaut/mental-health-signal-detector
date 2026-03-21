@@ -4,6 +4,8 @@ from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.common.config import get_settings
+
 
 def _get_client_ip(request: Request) -> str:
     """Retourne l'IP réelle du client.
@@ -15,8 +17,9 @@ def _get_client_ip(request: Request) -> str:
 
     Fallback sur l'IP socket réelle si le header est absent.
     """
+    settings = get_settings()
     forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
-    if forwarded_for:
+    if settings.trust_proxy_headers and forwarded_for:
         return forwarded_for.split(",")[-1].strip()
     return get_remote_address(request)
 

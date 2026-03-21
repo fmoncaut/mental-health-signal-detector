@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -5,7 +7,7 @@ class PredictRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     text: str = Field(..., min_length=1, max_length=5000, description="Texte à analyser")
-    model_type: str = Field(default="baseline", pattern="^(baseline|distilbert|mental_bert_v3)$")
+    model_type: Literal["baseline", "distilbert", "mental_bert_v3", "mental_roberta"] = "baseline"
 
 
 class PredictResponse(BaseModel):
