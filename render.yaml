@@ -14,4 +14,6 @@ services:
         sync: false   # URL Vercel du frontend
       - key: PORT
         value: "8000"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"   # Render place un load balancer devant — X-Forwarded-For fiable
     healthCheckPath: /health
