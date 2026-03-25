@@ -70,6 +70,12 @@ CRITICAL_KEYWORDS_FR: list[str] = [
     "je suis de trop", "je suis de trop dans ce monde",
     "il ny a plus dissue", "il ny a plus de solution pour moi",
     "personne ne peut maider",
+    # Moyens létaux — overdose / médicaments (signaux de passage à l'acte)
+    # Normalisés à l'import via normalize_text() — les accents seront supprimés
+    "médicaments", "médocs", "overdose", "surdose", "surdosage",
+    "avaler des comprimés", "avaler des cachets", "avaler des pilules",
+    "prendre des médicaments pour mourir", "trop de médicaments",
+    "avaler des médicaments", "ingérer des médicaments",
 ]
 
 CRITICAL_KEYWORDS_EN: list[str] = [

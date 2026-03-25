@@ -39,7 +39,7 @@ RESOURCES: dict[str, Resource] = {
         label="Mon Soutien Psy",
         detail="Séances remboursées avec psychologue conventionné",
         type="website",
-        href="https://www.has-sante.fr/jcms/p_3333615/fr/mon-soutien-psy",
+        href="https://www.ameli.fr/assure/remboursements/rembourse/remboursement-seance-psychologue-mon-soutien-psy",
     ),
     "psycom": Resource(
         id="psycom",
@@ -109,7 +109,7 @@ RESOURCES_BY_LEVEL: dict[int, dict[str, list[Resource]]] = {
     1: {"kids": [], "adult": []},
     2: {
         "kids": [RESOURCES["procheEnfant"], RESOURCES["antiHarcelement"], RESOURCES["harcelementScolaire"], RESOURCES["filSanteJeunes"]],
-        "adult": [RESOURCES["proche"], RESOURCES["monSoutienPsy"], RESOURCES["psycom"]],
+        "adult": [RESOURCES["line3114"], RESOURCES["proche"], RESOURCES["monSoutienPsy"], RESOURCES["psycom"]],
     },
     3: {
         "kids": [RESOURCES["line3114"], RESOURCES["enfanceEnDanger"], RESOURCES["antiHarcelement"], RESOURCES["harcelementScolaire"], RESOURCES["procheEnfant"]],

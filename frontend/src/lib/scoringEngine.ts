@@ -85,6 +85,15 @@ export const CRITICAL_KEYWORDS = [
   "i dont deserve to live", "dont deserve to live",
   "giving up on life", "i give up on life",
   "no hope left", "theres no way out", "there is no way out",
+  // FR — moyens létaux : overdose / médicaments (signaux de passage à l'acte)
+  // Stockés normalisés (sans accents) — normalizeText() les traite à la comparaison
+  "medicaments", "medocs", "overdose", "surdose", "surdosage",
+  "avaler des comprimes", "avaler des cachets", "avaler des pilules",
+  "prendre des medicaments pour mourir", "trop de medicaments",
+  "avaler des medicaments", "ingerer des medicaments",
+  // EN — lethal means: overdose / medications
+  "overdose", "take pills", "take all my pills",
+  "swallow pills", "medication overdose",
 ];
 
 // ─── Seuils de triage clinique ───────────────────────────────────────────────

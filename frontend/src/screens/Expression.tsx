@@ -278,34 +278,6 @@ export default function Expression() {
           />
         </motion.div>
 
-        {/* Consentement RGPD opt-in — visible uniquement si du texte a été saisi */}
-        {text.trim().length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-4 p-4 bg-blue-50 rounded-2xl border border-blue-100"
-          >
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-                disabled={isLoading}
-                className="mt-0.5 w-4 h-4 accent-teal-500 flex-shrink-0"
-              />
-              <span className="text-xs text-slate-600 leading-relaxed">
-                <strong className="text-slate-700">Aider d'autres personnes</strong>
-                {" "}— En cochant cette case, vous acceptez que le texte ci-dessus soit conservé
-                de façon <strong>anonyme</strong> pour améliorer notre capacité à détecter
-                les signaux de détresse et mieux accompagner les personnes qui en ont besoin.
-                {" "}<em>Seul le texte saisi sera conservé</em>, sans aucune information permettant de vous identifier.
-                Si vous préférez ne pas partager, vos données seront supprimées à la fin de cette session.
-              </span>
-            </label>
-          </motion.div>
-        )}
-
         <motion.button
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -331,6 +303,34 @@ export default function Expression() {
               : mode === "kids" ? "Partager mes ressentis" : "Envoyer"}
           </span>
         </motion.button>
+
+        {/* Consentement RGPD opt-in — visible uniquement si du texte a été saisi */}
+        {text.trim().length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100"
+          >
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={isLoading}
+                className="mt-0.5 w-4 h-4 accent-teal-500 flex-shrink-0"
+              />
+              <span className="text-xs text-slate-600 leading-relaxed">
+                <strong className="text-slate-700">Aider d'autres personnes</strong>
+                {" "}— En cochant cette case, vous acceptez que le texte ci-dessus soit conservé
+                de façon <strong>anonyme</strong> pour améliorer notre capacité à détecter
+                les signaux de détresse et mieux accompagner les personnes qui en ont besoin.
+                {" "}<em>Seul le texte saisi sera conservé</em>, sans aucune information permettant de vous identifier.
+                Si vous préférez ne pas partager, vos données seront supprimées à la fin de cette session.
+              </span>
+            </label>
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0 }}

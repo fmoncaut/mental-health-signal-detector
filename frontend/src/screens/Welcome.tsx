@@ -70,7 +70,7 @@ export default function Welcome() {
           className="text-4xl mb-4"
           style={{ color: "#2A5F7D" }}
         >
-          Comment te sens-tu aujourd'hui ?
+          Comment vous sentez-vous aujourd'hui ?
         </motion.h1>
 
         {/* Subtitle */}
@@ -123,7 +123,7 @@ export default function Welcome() {
           transition={{ delay: 1.1 }}
           className="text-sm text-gray-500 mt-8"
         >
-          Un espace sûr pour exprimer tes émotions 💙
+          Un espace sûr pour exprimer vos émotions 💙
         </motion.p>
       </motion.div>
 

@@ -45,7 +45,7 @@ export const RESOURCES: Record<string, Resource> = {
     label: "Mon Soutien Psy",
     detail: "Séances remboursées avec un psychologue",
     type: "website",
-    href: "https://www.has-sante.fr/jcms/p_3333615/fr/mon-soutien-psy",
+    href: "https://www.ameli.fr/assure/remboursements/rembourse/remboursement-seance-psychologue-mon-soutien-psy",
     urgent: false,
   },
   psycom: {
@@ -136,8 +136,8 @@ export const MICRO_ACTIONS: Record<string, MicroAction> = {
   },
   grounding54321: {
     id: "grounding-54321",
-    title: "Ancrage 5-4-3-2-1",
-    description: "Nomme : 5 choses que tu vois · 4 que tu entends · 3 que tu touches · 2 odeurs · 1 goût.",
+    title: "Ancrage sensoriel 5-4-3-2-1",
+    description: "Cette technique ramène l'attention dans le présent en activant les 5 sens, ce qui calme rapidement le système nerveux. Nommez lentement : 5 choses que vous voyez autour de vous · 4 sons que vous entendez · 3 textures que vous pouvez toucher · 2 odeurs · 1 goût. Prenez le temps pour chaque sens.",
     duration: "3 min",
     brick: "mindfulness",
   },
@@ -585,7 +585,7 @@ export const RESOURCES_BY_LEVEL: Record<number, { kids: Resource[]; adult: Resou
   1: { kids: [], adult: [] },
   2: {
     kids: [RESOURCES.procheEnfant, RESOURCES.antiHarcelement, RESOURCES.harcelementScolaire, RESOURCES.filSanteJeunes],
-    adult: [RESOURCES.proche, RESOURCES.monSoutienPsy, RESOURCES.psycom],
+    adult: [RESOURCES.line3114, RESOURCES.proche, RESOURCES.monSoutienPsy, RESOURCES.psycom],
   },
   3: {
     // 3114 + 119 inclus au niveau 3 — prévention active, danger potentiel
