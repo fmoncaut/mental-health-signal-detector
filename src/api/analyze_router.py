@@ -150,9 +150,11 @@ def analyze_endpoint(request: Request, profile: DiagnosticProfileRequest) -> dic
         if not text:
             raise ValueError("Réponse Claude vide.")
 
+        usage = getattr(message, "usage", None)
+        output_tokens = getattr(usage, "output_tokens", "unknown")
         logger.info(
             f"[analyze] emotion={profile.emotionId} mode={profile.mode} "
-            f"level={profile.distressLevel} tokens={message.usage.output_tokens}"
+            f"level={profile.distressLevel} tokens={output_tokens}"
         )
         return {"message": text}
 

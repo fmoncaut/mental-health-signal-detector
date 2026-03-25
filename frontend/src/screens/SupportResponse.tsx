@@ -37,6 +37,16 @@ const getEmotionIcon = (emotionId: string, size: string = "w-16 h-16") => {
 };
 
 const VALID_EMOTIONS = new Set(["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"]);
+const VALID_EMOTION_COLORS = new Set([
+  "from-yellow-300 to-amber-400",
+  "from-blue-300 to-blue-400",
+  "from-red-300 to-rose-400",
+  "from-purple-300 to-violet-400",
+  "from-orange-300 to-orange-400",
+  "from-emerald-300 to-teal-400",
+  "from-slate-300 to-slate-400",
+  "from-pink-300 to-pink-400",
+]);
 
 export default function SupportResponse() {
   const navigate = useNavigate();
@@ -48,7 +58,8 @@ export default function SupportResponse() {
 
   // Validation et sanitisation
   const emotionId: string = VALID_EMOTIONS.has(rawEmotionId) ? rawEmotionId : "";
-  const emotionColor: string = location.state?.emotionColor ?? "";
+  const rawColor: string = location.state?.emotionColor ?? "";
+  const emotionColor: string = VALID_EMOTION_COLORS.has(rawColor) ? rawColor : "";
   const userText: string = typeof location.state?.userText === "string" ? location.state.userText : "";
   const mode: "kids" | "adult" = rawMode === "adult" ? "adult" : "kids";
   const mlScore: number | null = sanitizeMlScore(location.state?.mlScore);

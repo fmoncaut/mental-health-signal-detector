@@ -10,12 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Frontend `/expression` : correction du payload feedback (champ `distress_level` dérivé du score ML au lieu d'un champ API inexistant), améliorant la qualité des données collectées.
 - Endpoint `/analyze` durci : timeout explicite côté Anthropic + parsing robuste de la réponse pour éviter les erreurs runtime sur payload inattendu.
 - Endpoint `/feedback` durci : validation stricte du payload (`text` non vide après trim, normalisation `emotion`) et validation URL Supabase (HTTPS + domaine autorisé).
 - Validation API `/predict` alignée avec le backend : `model_type="mental_roberta"` accepté côté schéma public.
 - Frontend durci : `VITE_MODEL_TYPE` est maintenant validé sur une allowlist avec fallback sûr `baseline`.
 
 ### Security
+- Rate limiting proxy-aware renforcé : extraction défensive de la première IP valide depuis `X-Forwarded-For` (taille/format bornés) avec fallback socket.
+- Frontend `/support` durci : validation stricte de `emotionColor` sur allowlist (anti-injection CSS via router state).
 - CORS production renforcé : `ALLOWED_ORIGINS=*` est désormais rejeté (aucune origine autorisée) pour éviter une exposition cross-origin involontaire.
 - Headers HTTP de sécurité renforcés : ajout de `Permissions-Policy` et `Content-Security-Policy` sur les réponses API.
 - Protection SSRF configurationnelle sur `/feedback` renforcée via parsing URL (`urllib.parse`) au lieu d'un simple `endswith`.
@@ -23,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Désérialisation RoBERTa durcie : validation SHA-256 optionnelle (`MODEL_SHA256_ROBERTA`) avant chargement pickle + résolution de chemin confinée à `models/`.
 
 ### Tests
+- Ajout de tests de validation texte whitespace-only sur `/predict` et `/checkin`.
+- Ajout de tests sécurité X-Forwarded-For (IP invalide ignorée + fallback socket).
 - Ajout de tests de régression sécurité pour CORS prod strict, validation URL Supabase, texte blanc-only, et normalisation des émotions.
 - Ajout de tests API pour `mental_roberta` et pour la politique `trust_proxy_headers` (fallback socket IP si proxy non fiable).
 

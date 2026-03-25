@@ -18,6 +18,15 @@ const VALID_EMOTION_COLORS = new Set([
 import { motion } from "motion/react";
 import { Heart, Send, Smile, Frown, Angry, CloudRain, Zap, Cloud, Moon, Trophy, Loader2 } from "lucide-react";
 
+const toDistressLevel = (score: unknown): number => {
+  if (typeof score !== "number" || !Number.isFinite(score)) return 0;
+  if (score >= 0.75) return 4;
+  if (score >= 0.55) return 3;
+  if (score >= 0.35) return 2;
+  if (score >= 0.20) return 1;
+  return 0;
+};
+
 const getEmotionIcon = (emotionId: string) => {
   const icons: Record<string, React.ComponentType<any>> = {
     joy: Smile,
@@ -88,14 +97,15 @@ export default function Expression() {
         const data = await res.json();
         // Fire-and-forget feedback anonyme si consentement donné
         if (consent) {
+          const scoreMl = typeof data.score_distress === "number" ? data.score_distress : null;
           fetch(`${API_BASE}/feedback`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               text: text.trim(),
               emotion: emotionId,
-              distress_level: data.distress_level ?? 0,
-              score_ml: data.score_distress ?? null,
+              distress_level: toDistressLevel(scoreMl),
+              score_ml: scoreMl,
               consent: true,
             }),
           }).catch(() => {/* silencieux — ne bloque pas l'expérience */});

@@ -266,6 +266,16 @@ Améliorations v2.1 intégrées dans le notebook :
 | Medium | Désérialisation pickle RoBERTa (risque de tampering du fichier) | Vérification d'intégrité SHA-256 optionnelle + confinement du chemin au dossier `models/` | `src/training/predict.py`, `src/common/config.py` |
 | Low | Frontend accepte n'importe quelle valeur `VITE_MODEL_TYPE` | Allowlist stricte côté client + fallback `baseline` | `frontend/src/lib/api.ts` |
 
+### Revue 6 — durcissement API + qualité données feedback (2026-03-25)
+
+| Criticité | Finding | Correction | Fichier |
+|-----------|---------|-----------|---------|
+| Medium | Rate limit potentiellement inefficace derrière proxy multi-hops / header malformé | Parsing défensif `X-Forwarded-For` (première IP valide, bornes taille/parts) + fallback socket | `src/api/rate_limit.py` |
+| Medium | Entrées texte whitespace-only acceptées (`/predict`, `/explain`, `/checkin`) | Validators Pydantic `text_not_blank()` avec trim explicite | `src/api/schemas.py`, `src/checkin/schemas.py` |
+| Low | Feedback stocke un niveau de détresse inexact (`distress_level` absent de `/predict`) | Mapping explicite score ML → niveau 0..4 côté frontend avant POST `/feedback` | `frontend/src/screens/Expression.tsx` |
+| Low | Classe CSS injectée possible via `emotionColor` dans router state | Allowlist stricte des gradients autorisés côté `SupportResponse` | `frontend/src/screens/SupportResponse.tsx` |
+| Low | Logging fragile si `message.usage` absent sur réponse Anthropic | Accès défensif via `getattr(..., "unknown")` | `src/api/analyze_router.py` |
+
 ### Posture actuelle — `ruff` ✅ · `pip-audit` ✅ (1 exception documentée) · 188/188 tests ✅
 
 ---

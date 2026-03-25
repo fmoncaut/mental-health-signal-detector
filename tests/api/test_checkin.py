@@ -45,6 +45,12 @@ def test_checkin_text_only_nlp_fallback(client):
     assert data["level"] in ("green", "yellow", "red")
 
 
+def test_checkin_whitespace_text_rejected(client):
+    """422 si texte uniquement composé d'espaces."""
+    response = client.post("/checkin", json={"text": "   \n\t  "})
+    assert response.status_code == 422
+
+
 def test_checkin_emoji_safety_floor_red(client):
     """😢 → niveau red garanti même si le NLP retourne un score faible."""
     with patch("src.api.checkin_router._get_model"), \
