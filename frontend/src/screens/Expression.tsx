@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { API_BASE, MODEL_TYPE } from "../lib/api";
 
-const VALID_EMOTIONS = new Set(["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"]);
+const VALID_EMOTION_IDS = ["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"] as const;
+type ValidEmotionId = (typeof VALID_EMOTION_IDS)[number];
+const VALID_EMOTIONS = new Set<string>(VALID_EMOTION_IDS);
 
 // Whitelist des gradients Tailwind autorisés — empêche l'injection CSS via router state
 const VALID_EMOTION_COLORS = new Set([
@@ -46,7 +48,7 @@ export default function Expression() {
   const navigate = useNavigate();
   const location = useLocation();
   const rawEmotionId = location.state?.emotionId;
-  const emotionId: string = VALID_EMOTIONS.has(rawEmotionId) ? rawEmotionId : "";
+  const emotionId: ValidEmotionId | "" = VALID_EMOTIONS.has(rawEmotionId) ? (rawEmotionId as ValidEmotionId) : "";
   const emotionLabel: string = typeof location.state?.emotionLabel === "string" ? location.state.emotionLabel : "";
   const rawColor: string = location.state?.emotionColor ?? "";
   const emotionColor: string = VALID_EMOTION_COLORS.has(rawColor) ? rawColor : "";
@@ -77,6 +79,23 @@ export default function Expression() {
     };
   }, []);
 
+  const sendAnonymousFeedback = (scoreMl: number | null) => {
+    if (!consent || !emotionId) return;
+    fetch(`${API_BASE}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: text.trim(),
+        emotion: emotionId,
+        distress_level: toDistressLevel(scoreMl),
+        score_ml: scoreMl,
+        consent: true,
+      }),
+    }).catch(() => {
+      /* silencieux — ne bloque pas l'expérience */
+    });
+  };
+
   const handleSubmit = async () => {
     if (!text.trim() || isLoading) return;
     setIsLoading(true);
@@ -96,20 +115,8 @@ export default function Expression() {
       if (res.ok) {
         const data = await res.json();
         // Fire-and-forget feedback anonyme si consentement donné
-        if (consent) {
-          const scoreMl = typeof data.score_distress === "number" ? data.score_distress : null;
-          fetch(`${API_BASE}/feedback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: text.trim(),
-              emotion: emotionId,
-              distress_level: toDistressLevel(scoreMl),
-              score_ml: scoreMl,
-              consent: true,
-            }),
-          }).catch(() => {/* silencieux — ne bloque pas l'expérience */});
-        }
+        const scoreMl = typeof data.score_distress === "number" ? data.score_distress : null;
+        sendAnonymousFeedback(scoreMl);
         navigate("/support", {
           state: {
             emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels,
@@ -119,6 +126,7 @@ export default function Expression() {
           },
         });
       } else {
+        sendAnonymousFeedback(null);
         navigate("/support", {
           state: { emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels, userText: text, mode, mlScore: null, selfScore, selfReportAnswers },
         });
@@ -127,6 +135,7 @@ export default function Expression() {
       // Abort volontaire (démontage du composant) → ne pas naviguer
       if (err instanceof DOMException && err.name === "AbortError") return;
       if (!isMountedRef.current) return;
+      sendAnonymousFeedback(null);
       // Erreur réseau → fallback sans ML
       navigate("/support", {
         state: { emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels, userText: text, mode, mlScore: null, selfScore, selfReportAnswers },

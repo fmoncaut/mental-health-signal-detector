@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
 from src.api.rate_limit import limiter
-from src.solutions.schemas import DiagnosticProfileRequest
+from src.solutions.schemas import DiagnosticProfileRequest, VALID_EMOTION_IDS
 from src.common.config import get_settings
 
 try:
@@ -116,6 +116,10 @@ def analyze_endpoint(request: Request, profile: DiagnosticProfileRequest) -> dic
     """
     settings = get_settings()
 
+    if profile.emotionId not in VALID_EMOTION_IDS:
+        logger.warning("[analyze] emotionId invalide rejeté")
+        raise HTTPException(status_code=422, detail="emotionId invalide")
+
     if not settings.anthropic_api_key:
         raise HTTPException(
             status_code=503,
@@ -164,6 +168,6 @@ def analyze_endpoint(request: Request, profile: DiagnosticProfileRequest) -> dic
     except anthropic.RateLimitError:
         logger.warning("[analyze] Rate limit Anthropic atteint.")
         raise HTTPException(status_code=503, detail="Service temporairement indisponible.") from None
-    except Exception:
-        logger.exception("[analyze] Erreur inattendue")  # traceback complet, sans interpoler l'exception
+    except Exception as exc:
+        logger.error("[analyze] Erreur inattendue type={}", type(exc).__name__)
         raise HTTPException(status_code=503, detail="Service de personnalisation indisponible.") from None

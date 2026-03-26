@@ -345,6 +345,36 @@ class TestPromptInjectionPrevention:
         assert "épuisement" in prompt
 
 
+class TestRequestIdAndSecurityHeaders:
+    def test_request_id_generated_when_absent(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        request_id = resp.headers.get("X-Request-ID")
+        assert request_id is not None
+        assert len(request_id) > 0
+
+    def test_request_id_preserved_when_present(self, client):
+        request_id = "test-request-id-123"
+        resp = client.get("/health", headers={"X-Request-ID": request_id})
+        assert resp.status_code == 200
+        assert resp.headers.get("X-Request-ID") == request_id
+
+    def test_request_id_invalid_value_is_regenerated(self, client):
+        invalid_request_id = "invalid/request/id"
+        resp = client.get("/health", headers={"X-Request-ID": invalid_request_id})
+        assert resp.status_code == 200
+        response_request_id = resp.headers.get("X-Request-ID")
+        assert response_request_id is not None
+        assert response_request_id != invalid_request_id
+        assert len(response_request_id) > 0
+
+    def test_new_security_headers_present(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.headers.get("X-Permitted-Cross-Domain-Policies") == "none"
+        assert resp.headers.get("Cross-Origin-Opener-Policy") == "same-origin"
+
+
 # ─── B3 : IP extraite de X-Forwarded-For ────────────────────────────────────
 
 class TestClientIpExtraction:

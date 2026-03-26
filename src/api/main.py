@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import re
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +17,7 @@ from src.api.checkin_router import router as checkin_router
 from src.api.solutions_router import router as solutions_router
 from src.api.analyze_router import router as analyze_router
 from src.api.feedback_router import router as feedback_router
+from src.api.feedback_router import close_supabase_client
 from src.common.config import get_settings
 
 # Imports ML optionnels — absents dans le déploiement slim (sans modèle)
@@ -41,6 +44,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Démarrage de l'API — mode slim (sans modèle ML).")
     yield
+    await close_supabase_client()
     logger.info("Arrêt de l'API.")
 
 
@@ -71,6 +75,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _MAX_REQUEST_BODY = 64 * 1024  # 64 KB — textes longs refusés (prompt injection, DoS)
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
@@ -105,6 +110,20 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Ajoute un identifiant de corrélation par requête (X-Request-ID)."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = (request.headers.get("X-Request-ID") or "").strip()
+        if not _REQUEST_ID_RE.fullmatch(request_id):
+            request_id = str(uuid4())
+
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Ajoute les en-têtes de sécurité HTTP à chaque réponse."""
 
@@ -112,9 +131,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'none'; "
+            "form-action 'none'"
+        )
         if _settings.env == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
         return response
@@ -124,8 +150,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 

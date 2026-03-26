@@ -2,12 +2,22 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api.main import app
 from src.common.config import Settings
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_supabase_client_singleton():
+    import src.api.feedback_router as feedback_router
+
+    feedback_router._supabase_client = None
+    yield
+    feedback_router._supabase_client = None
 
 VALID_PAYLOAD = {
     "text": "Je me sens très fatigué et triste depuis plusieurs semaines.",
@@ -19,6 +29,13 @@ VALID_PAYLOAD = {
 
 _SETTINGS_NO_SUPABASE = Settings(supabase_url="", supabase_service_key="")
 _SETTINGS_WITH_SUPABASE = Settings(supabase_url="https://example.supabase.co", supabase_service_key="fake-key")
+_SETTINGS_WITH_SUPABASE_REST = Settings(supabase_url="https://example.supabase.co/rest/v1", supabase_service_key="fake-key")
+_SETTINGS_WITH_SUPABASE_PROD = Settings(
+    env="production",
+    allowed_origins="https://app.example.com",
+    supabase_url="https://example.supabase.co",
+    supabase_service_key="fake-key",
+)
 
 
 class TestSupabaseUrlValidation:
@@ -42,6 +59,16 @@ class TestSupabaseUrlValidation:
 
         assert _is_valid_supabase_url("https://example.supabase.co?x=1") is False
         assert _is_valid_supabase_url("https://example.supabase.co#frag") is False
+
+    def test_accepts_supabase_url_with_rest_prefix(self):
+        from src.api.feedback_router import _is_valid_supabase_url
+
+        assert _is_valid_supabase_url("https://example.supabase.co/rest/v1") is True
+
+    def test_rejects_supabase_url_with_unexpected_path(self):
+        from src.api.feedback_router import _is_valid_supabase_url
+
+        assert _is_valid_supabase_url("https://example.supabase.co/foo") is False
 
 
 class TestFeedbackValidation:
@@ -144,8 +171,6 @@ class TestFeedbackSupabaseIntegration:
         mock_response.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_response)
 
         with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE), \
@@ -155,6 +180,22 @@ class TestFeedbackSupabaseIntegration:
 
         assert res.status_code == 204
 
+    def test_success_with_rest_prefixed_url_returns_204(self):
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE_REST), \
+             patch("src.api.feedback_router._HTTPX_AVAILABLE", True), \
+             patch("httpx.AsyncClient", return_value=mock_client):
+            res = client.post("/feedback", json=VALID_PAYLOAD)
+
+        assert res.status_code == 204
+        called_url = mock_client.post.await_args.args[0]
+        assert called_url == "https://example.supabase.co/rest/v1/anonymous_feedback"
+
     def test_supabase_http_error_returns_503(self):
         import httpx
 
@@ -163,8 +204,6 @@ class TestFeedbackSupabaseIntegration:
         mock_response.text = "Internal Server Error"
 
         mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(
             side_effect=httpx.HTTPStatusError("error", request=MagicMock(), response=mock_response)
         )
@@ -180,8 +219,6 @@ class TestFeedbackSupabaseIntegration:
         import httpx
 
         mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(
             side_effect=httpx.ConnectError("Connection refused")
         )
@@ -192,3 +229,40 @@ class TestFeedbackSupabaseIntegration:
             res = client.post("/feedback", json=VALID_PAYLOAD)
 
         assert res.status_code == 503
+
+
+class TestFeedbackOriginValidation:
+    def test_rejects_missing_origin_in_production(self):
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE_PROD):
+            res = client.post(
+                "/feedback",
+                json=VALID_PAYLOAD,
+            )
+        assert res.status_code == 403
+
+    def test_rejects_untrusted_origin_in_production(self):
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE_PROD):
+            res = client.post(
+                "/feedback",
+                json=VALID_PAYLOAD,
+                headers={"Origin": "https://evil.example"},
+            )
+        assert res.status_code == 403
+
+    def test_accepts_allowed_origin_in_production(self):
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        with patch("src.api.feedback_router.get_settings", return_value=_SETTINGS_WITH_SUPABASE_PROD), \
+             patch("src.api.feedback_router._HTTPX_AVAILABLE", True), \
+             patch("httpx.AsyncClient", return_value=mock_client):
+            res = client.post(
+                "/feedback",
+                json=VALID_PAYLOAD,
+                headers={"Origin": "https://app.example.com"},
+            )
+
+        assert res.status_code == 204

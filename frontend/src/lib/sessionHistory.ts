@@ -1,8 +1,8 @@
 /**
  * sessionHistory — Historique local des sessions émotionnelles
  *
- * Stockage : localStorage (on-device uniquement, aucune donnée serveur)
- * Rétention : 30 jours glissants, 10 sessions max
+ * Stockage : sessionStorage (on-device uniquement, effacé à la fermeture de l'onglet)
+ * Rétention : session courante uniquement, 10 sessions max
  * Déduplique automatiquement si la même session est soumise dans les 5 minutes
  *
  * Utilisé pour afficher la tendance (amélioration / stable / dégradation)
@@ -24,20 +24,17 @@ export type Trend = "improving" | "stable" | "worsening";
 
 const STORAGE_KEY  = "mh_session_history";
 const MAX_SESSIONS = 10;
-const MAX_AGE_MS   = 30 * 24 * 60 * 60 * 1000; // 30 jours
 const DEDUP_MS     = 5  * 60 * 1000;            // 5 minutes
 
 export function getSessions(): SessionRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const all: SessionRecord[] = JSON.parse(raw);
-    const cutoff = Date.now() - MAX_AGE_MS;
-    return all.filter((s) => new Date(s.date).getTime() > cutoff);
+    return JSON.parse(raw) as SessionRecord[];
   } catch (err) {
     if (err instanceof SyntaxError) {
       // Données corrompues — nettoyage silencieux
-      try { localStorage.removeItem(STORAGE_KEY); } catch { /* quota */ }
+      try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* quota */ }
     }
     return [];
   }
@@ -49,9 +46,9 @@ export function getSessions(): SessionRecord[] {
  */
 export function clearSessions(): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   } catch {
-    // localStorage indisponible — silencieux
+    // sessionStorage indisponible — silencieux
   }
 }
 
@@ -65,9 +62,9 @@ export function saveSession(record: SessionRecord): void {
 
     sessions.push(record);
     // Garder les MAX_SESSIONS les plus récentes
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(-MAX_SESSIONS)));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(-MAX_SESSIONS)));
   } catch {
-    // localStorage indisponible (mode privé, quota dépassé) → silencieux
+    // sessionStorage indisponible (mode privé, quota dépassé) → silencieux
   }
 }
 
