@@ -114,7 +114,7 @@ Panneau "Analyse" sur l'écran Solutions : points de triage, barre de score %, d
 
 ### Suivi longitudinal
 
-`sessionHistory.ts` : historique localStorage 30 jours, 10 sessions max, déduplication 5 min. Tendance calculée sur les 2 dernières sessions, affichée dans le panneau Analyse (adulte) ou en message narratif (enfant).
+`sessionHistory.ts` : historique sessionStorage (session navigateur courante), 10 sessions max, déduplication 5 min. Tendance calculée sur les 2 dernières sessions, affichée dans le panneau Analyse (adulte) ou en message narratif (enfant).
 
 ### Feedback micro-actions
 
@@ -221,8 +221,9 @@ Améliorations v2.1 intégrées dans le notebook :
 | P1 | Middleware 64 KB — octets réels lus (anti-DoS/chunked) | `src/api/main.py` |
 | P1 | `/health` retourne 503 sur erreur inattendue | `src/api/main.py` |
 | P1 | `API_URL` validé regex + IPs privées bloquées en prod | `src/checkin/app.py`, `src/dashboard/app.py` |
-| P1 | Rate limiting slowapi : 20/min checkin, 30/min predict, 10/min explain | `src/api/rate_limit.py` |
+| P1 | Rate limiting slowapi : 20/min `POST /checkin`, 10/min `POST /checkin/reminder`, 30/min `POST /predict`, 10/min `POST /explain`, 5/min `POST /analyze` | `src/api/rate_limit.py` |
 | P1 | CORS restreint via `ALLOWED_ORIGINS` env en production | `src/api/main.py` |
+| P2 | Corrélation requêtes : en-tête `X-Request-ID` généré/repris et retourné dans la réponse | `src/api/main.py` |
 
 ### Revue 2 — findings (2026-03-17)
 
@@ -265,6 +266,16 @@ Améliorations v2.1 intégrées dans le notebook :
 | Medium | Spoof possible de `X-Forwarded-For` si service exposé sans proxy de confiance | Lecture `X-Forwarded-For` conditionnée par `trust_proxy_headers=true` | `src/api/rate_limit.py`, `src/common/config.py` |
 | Medium | Désérialisation pickle RoBERTa (risque de tampering du fichier) | Vérification d'intégrité SHA-256 optionnelle + confinement du chemin au dossier `models/` | `src/training/predict.py`, `src/common/config.py` |
 | Low | Frontend accepte n'importe quelle valeur `VITE_MODEL_TYPE` | Allowlist stricte côté client + fallback `baseline` | `frontend/src/lib/api.ts` |
+
+### Revue 6 — durcissement API + qualité données feedback (2026-03-25)
+
+| Criticité | Finding | Correction | Fichier |
+|-----------|---------|-----------|---------|
+| Medium | Rate limit potentiellement inefficace derrière proxy multi-hops / header malformé | Parsing défensif `X-Forwarded-For` (première IP valide, bornes taille/parts) + fallback socket | `src/api/rate_limit.py` |
+| Medium | Entrées texte whitespace-only acceptées (`/predict`, `/explain`, `/checkin`) | Validators Pydantic `text_not_blank()` avec trim explicite | `src/api/schemas.py`, `src/checkin/schemas.py` |
+| Low | Feedback stocke un niveau de détresse inexact (`distress_level` absent de `/predict`) | Mapping explicite score ML → niveau 0..4 côté frontend avant POST `/feedback` | `frontend/src/screens/Expression.tsx` |
+| Low | Classe CSS injectée possible via `emotionColor` dans router state | Allowlist stricte des gradients autorisés côté `SupportResponse` | `frontend/src/screens/SupportResponse.tsx` |
+| Low | Logging fragile si `message.usage` absent sur réponse Anthropic | Accès défensif via `getattr(..., "unknown")` | `src/api/analyze_router.py` |
 
 ### Posture actuelle — `ruff` ✅ · `pip-audit` ✅ (1 exception documentée) · 188/188 tests ✅
 

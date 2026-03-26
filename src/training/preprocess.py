@@ -12,7 +12,6 @@ Datasets supportés :
 import re
 import pandas as pd
 from pathlib import Path
-from datasets import load_dataset
 from loguru import logger
 
 
@@ -89,6 +88,8 @@ def load_dair_emotion(split: str = "train") -> pd.DataFrame:
     Charge DAIR-AI/emotion depuis HuggingFace.
     Labels originaux (6 classes) → binaire : sadness(0) + fear(2) = détresse=1, reste=0.
     """
+    from datasets import load_dataset
+
     dataset = load_dataset("dair-ai/emotion", split=split)
     df = pd.DataFrame({"text": dataset["text"], "label_orig": dataset["label"]})
 
@@ -114,6 +115,8 @@ def load_go_emotions(split: str = "train") -> pd.DataFrame:
     # Labels de détresse clinique (index GoEmotions simplified)
     # 9=disappointment, 12=embarrassment, 14=fear, 16=grief, 19=nervousness, 24=remorse, 25=sadness
     DISTRESS_LABELS = {9, 12, 14, 16, 19, 24, 25}
+
+    from datasets import load_dataset
 
     dataset = load_dataset("google-research-datasets/go_emotions", "simplified", split=split)
     df = pd.DataFrame({"text": dataset["text"], "labels": dataset["labels"]})

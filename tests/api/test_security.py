@@ -345,6 +345,36 @@ class TestPromptInjectionPrevention:
         assert "épuisement" in prompt
 
 
+class TestRequestIdAndSecurityHeaders:
+    def test_request_id_generated_when_absent(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        request_id = resp.headers.get("X-Request-ID")
+        assert request_id is not None
+        assert len(request_id) > 0
+
+    def test_request_id_preserved_when_present(self, client):
+        request_id = "test-request-id-123"
+        resp = client.get("/health", headers={"X-Request-ID": request_id})
+        assert resp.status_code == 200
+        assert resp.headers.get("X-Request-ID") == request_id
+
+    def test_request_id_invalid_value_is_regenerated(self, client):
+        invalid_request_id = "invalid/request/id"
+        resp = client.get("/health", headers={"X-Request-ID": invalid_request_id})
+        assert resp.status_code == 200
+        response_request_id = resp.headers.get("X-Request-ID")
+        assert response_request_id is not None
+        assert response_request_id != invalid_request_id
+        assert len(response_request_id) > 0
+
+    def test_new_security_headers_present(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.headers.get("X-Permitted-Cross-Domain-Policies") == "none"
+        assert resp.headers.get("Cross-Origin-Opener-Policy") == "same-origin"
+
+
 # ─── B3 : IP extraite de X-Forwarded-For ────────────────────────────────────
 
 class TestClientIpExtraction:
@@ -356,22 +386,39 @@ class TestClientIpExtraction:
         req.client.host = "127.0.0.1"
         return req
 
-    def test_uses_last_ip_from_forwarded_for(self):
-        """Prend la DERNIÈRE IP — celle ajoutée par le proxy de confiance (Render).
-        La première IP est contrôlée par le client et peut être forgée.
-        """
+    def test_uses_first_valid_ip_from_forwarded_for(self):
+        """Prend la PREMIÈRE IP valide de X-Forwarded-For (client d'origine)."""
         from src.api.rate_limit import _get_client_ip
         req = self._make_request({"X-Forwarded-For": "1.2.3.4, 10.0.0.1, 172.16.0.1"})
         with patch("src.api.rate_limit.get_settings") as mock_settings:
             mock_settings.return_value.trust_proxy_headers = True
-            assert _get_client_ip(req) == "172.16.0.1"
+            assert _get_client_ip(req) == "1.2.3.4"
 
     def test_strips_whitespace(self):
         from src.api.rate_limit import _get_client_ip
         req = self._make_request({"X-Forwarded-For": "5.6.7.8,  10.0.0.1  "})
         with patch("src.api.rate_limit.get_settings") as mock_settings:
             mock_settings.return_value.trust_proxy_headers = True
-            assert _get_client_ip(req) == "10.0.0.1"
+            assert _get_client_ip(req) == "5.6.7.8"
+
+    def test_skips_invalid_entries_and_uses_next_valid_ip(self):
+        from src.api.rate_limit import _get_client_ip
+
+        req = self._make_request({"X-Forwarded-For": "garbage, also_bad, 8.8.8.8"})
+        with patch("src.api.rate_limit.get_settings") as mock_settings:
+            mock_settings.return_value.trust_proxy_headers = True
+            assert _get_client_ip(req) == "8.8.8.8"
+
+    def test_falls_back_when_forwarded_for_has_no_valid_ip(self):
+        from src.api.rate_limit import _get_client_ip
+
+        req = self._make_request({"X-Forwarded-For": "garbage,not_an_ip"})
+        with patch("src.api.rate_limit.get_settings") as mock_settings, patch(
+            "src.api.rate_limit.get_remote_address", return_value="9.8.7.6"
+        ):
+            mock_settings.return_value.trust_proxy_headers = True
+            ip = _get_client_ip(req)
+        assert ip == "9.8.7.6"
 
     def test_falls_back_to_socket_ip_when_header_absent(self):
         from src.api.rate_limit import _get_client_ip

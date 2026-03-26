@@ -161,3 +161,11 @@ class TestValidation:
     def test_score_above_1_returns_422(self, client):
         resp = client.post("/analyze", json=base_profile(mlScore=1.5))
         assert resp.status_code == 422
+
+    def test_invalid_emotion_id_returns_422(self, client):
+        resp = client.post("/analyze", json=base_profile(emotionId="<script>alert(1)</script>"))
+        assert resp.status_code == 422
+
+    def test_invalid_clinical_dimension_returns_422(self, client):
+        resp = client.post("/analyze", json=base_profile(clinicalDimensions=["invalid_dimension"]))
+        assert resp.status_code == 422

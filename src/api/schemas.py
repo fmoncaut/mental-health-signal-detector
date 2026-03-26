@@ -1,12 +1,21 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class PredictRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     text: str = Field(..., min_length=1, max_length=5000, description="Texte à analyser")
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str) -> str:
+        text = v.strip()
+        if not text:
+            raise ValueError("text cannot be blank")
+        return text
+
     model_type: Literal["baseline", "distilbert", "mental_bert_v3", "mental_roberta"] = "baseline"
 
 
@@ -23,6 +32,14 @@ class ExplainRequest(BaseModel):
 
     text: str = Field(..., min_length=1, max_length=5000)
     n_features: int = Field(default=15, ge=3, le=30)
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str) -> str:
+        text = v.strip()
+        if not text:
+            raise ValueError("text cannot be blank")
+        return text
 
 
 class FeatureContribution(BaseModel):

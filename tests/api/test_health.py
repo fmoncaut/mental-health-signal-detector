@@ -34,6 +34,11 @@ def test_predict_empty_text(client):
     assert response.status_code == 422
 
 
+def test_predict_whitespace_text(client):
+    response = client.post("/predict", json={"text": "   \n\t  ", "model_type": "baseline"})
+    assert response.status_code == 422
+
+
 def test_predict_accepts_mental_roberta_model_type(client):
     fake_response = PredictResponse(
         label=1,

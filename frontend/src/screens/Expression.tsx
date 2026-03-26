@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { API_BASE, MODEL_TYPE } from "../lib/api";
 
-const VALID_EMOTIONS = new Set(["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"]);
+const VALID_EMOTION_IDS = ["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"] as const;
+type ValidEmotionId = (typeof VALID_EMOTION_IDS)[number];
+const VALID_EMOTIONS = new Set<string>(VALID_EMOTION_IDS);
 
 // Whitelist des gradients Tailwind autorisés — empêche l'injection CSS via router state
 const VALID_EMOTION_COLORS = new Set([
@@ -17,6 +19,15 @@ const VALID_EMOTION_COLORS = new Set([
 ]);
 import { motion } from "motion/react";
 import { Heart, Send, Smile, Frown, Angry, CloudRain, Zap, Cloud, Moon, Trophy, Loader2 } from "lucide-react";
+
+const toDistressLevel = (score: unknown): number => {
+  if (typeof score !== "number" || !Number.isFinite(score)) return 0;
+  if (score >= 0.75) return 4;
+  if (score >= 0.55) return 3;
+  if (score >= 0.35) return 2;
+  if (score >= 0.20) return 1;
+  return 0;
+};
 
 const getEmotionIcon = (emotionId: string) => {
   const icons: Record<string, React.ComponentType<any>> = {
@@ -37,7 +48,7 @@ export default function Expression() {
   const navigate = useNavigate();
   const location = useLocation();
   const rawEmotionId = location.state?.emotionId;
-  const emotionId: string = VALID_EMOTIONS.has(rawEmotionId) ? rawEmotionId : "";
+  const emotionId: ValidEmotionId | "" = VALID_EMOTIONS.has(rawEmotionId) ? (rawEmotionId as ValidEmotionId) : "";
   const emotionLabel: string = typeof location.state?.emotionLabel === "string" ? location.state.emotionLabel : "";
   const rawColor: string = location.state?.emotionColor ?? "";
   const emotionColor: string = VALID_EMOTION_COLORS.has(rawColor) ? rawColor : "";
@@ -68,6 +79,23 @@ export default function Expression() {
     };
   }, []);
 
+  const sendAnonymousFeedback = (scoreMl: number | null) => {
+    if (!consent || !emotionId) return;
+    fetch(`${API_BASE}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: text.trim(),
+        emotion: emotionId,
+        distress_level: toDistressLevel(scoreMl),
+        score_ml: scoreMl,
+        consent: true,
+      }),
+    }).catch(() => {
+      /* silencieux — ne bloque pas l'expérience */
+    });
+  };
+
   const handleSubmit = async () => {
     if (!text.trim() || isLoading) return;
     setIsLoading(true);
@@ -87,19 +115,8 @@ export default function Expression() {
       if (res.ok) {
         const data = await res.json();
         // Fire-and-forget feedback anonyme si consentement donné
-        if (consent) {
-          fetch(`${API_BASE}/feedback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: text.trim(),
-              emotion: emotionId,
-              distress_level: data.distress_level ?? 0,
-              score_ml: data.score_distress ?? null,
-              consent: true,
-            }),
-          }).catch(() => {/* silencieux — ne bloque pas l'expérience */});
-        }
+        const scoreMl = typeof data.score_distress === "number" ? data.score_distress : null;
+        sendAnonymousFeedback(scoreMl);
         navigate("/support", {
           state: {
             emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels,
@@ -109,6 +126,7 @@ export default function Expression() {
           },
         });
       } else {
+        sendAnonymousFeedback(null);
         navigate("/support", {
           state: { emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels, userText: text, mode, mlScore: null, selfScore, selfReportAnswers },
         });
@@ -117,6 +135,7 @@ export default function Expression() {
       // Abort volontaire (démontage du composant) → ne pas naviguer
       if (err instanceof DOMException && err.name === "AbortError") return;
       if (!isMountedRef.current) return;
+      sendAnonymousFeedback(null);
       // Erreur réseau → fallback sans ML
       navigate("/support", {
         state: { emotionId, emotionLabel, emotionColor, emotionIds, emotionLabels, userText: text, mode, mlScore: null, selfScore, selfReportAnswers },
@@ -268,34 +287,6 @@ export default function Expression() {
           />
         </motion.div>
 
-        {/* Consentement RGPD opt-in — visible uniquement si du texte a été saisi */}
-        {text.trim().length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-4 p-4 bg-blue-50 rounded-2xl border border-blue-100"
-          >
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-                disabled={isLoading}
-                className="mt-0.5 w-4 h-4 accent-teal-500 flex-shrink-0"
-              />
-              <span className="text-xs text-slate-600 leading-relaxed">
-                <strong className="text-slate-700">Aider d'autres personnes</strong>
-                {" "}— En cochant cette case, vous acceptez que le texte ci-dessus soit conservé
-                de façon <strong>anonyme</strong> pour améliorer notre capacité à détecter
-                les signaux de détresse et mieux accompagner les personnes qui en ont besoin.
-                {" "}<em>Seul le texte saisi sera conservé</em>, sans aucune information permettant de vous identifier.
-                Si vous préférez ne pas partager, vos données seront supprimées à la fin de cette session.
-              </span>
-            </label>
-          </motion.div>
-        )}
-
         <motion.button
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -321,6 +312,34 @@ export default function Expression() {
               : mode === "kids" ? "Partager mes ressentis" : "Envoyer"}
           </span>
         </motion.button>
+
+        {/* Consentement RGPD opt-in — visible uniquement si du texte a été saisi */}
+        {text.trim().length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-100"
+          >
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={isLoading}
+                className="mt-0.5 w-4 h-4 accent-teal-500 flex-shrink-0"
+              />
+              <span className="text-xs text-slate-600 leading-relaxed">
+                <strong className="text-slate-700">Aider d'autres personnes</strong>
+                {" "}— En cochant cette case, vous acceptez que le texte ci-dessus soit conservé
+                de façon <strong>anonyme</strong> pour améliorer notre capacité à détecter
+                les signaux de détresse et mieux accompagner les personnes qui en ont besoin.
+                {" "}<em>Seul le texte saisi sera conservé</em>, sans aucune information permettant de vous identifier.
+                Si vous préférez ne pas partager, vos données seront supprimées à la fin de cette session.
+              </span>
+            </label>
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0 }}

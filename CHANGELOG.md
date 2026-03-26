@@ -10,21 +10,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Frontend `/expression` : correction du payload feedback (champ `distress_level` dérivé du score ML au lieu d'un champ API inexistant), améliorant la qualité des données collectées.
 - Endpoint `/analyze` durci : timeout explicite côté Anthropic + parsing robuste de la réponse pour éviter les erreurs runtime sur payload inattendu.
 - Endpoint `/feedback` durci : validation stricte du payload (`text` non vide après trim, normalisation `emotion`) et validation URL Supabase (HTTPS + domaine autorisé).
+- Endpoint `/analyze` : validation explicite de `emotionId` avec rejet `422` pour les valeurs hors allowlist.
+- Endpoint `/feedback` : `distress_level` aligné sur un type strict `Literal[0..4]`.
 - Validation API `/predict` alignée avec le backend : `model_type="mental_roberta"` accepté côté schéma public.
 - Frontend durci : `VITE_MODEL_TYPE` est maintenant validé sur une allowlist avec fallback sûr `baseline`.
+- Frontend historique : migration de `localStorage` vers `sessionStorage` pour réduire la persistance des données sensibles.
+- `/feedback` : passage à un client HTTP Supabase partagé (pool de connexions réutilisé) pour réduire l'overhead par requête.
 
 ### Security
+- Rate limiting proxy-aware renforcé : extraction défensive de la première IP valide depuis `X-Forwarded-For` (taille/format bornés) avec fallback socket.
+- Frontend `/support` durci : validation stricte de `emotionColor` sur allowlist (anti-injection CSS via router state).
 - CORS production renforcé : `ALLOWED_ORIGINS=*` est désormais rejeté (aucune origine autorisée) pour éviter une exposition cross-origin involontaire.
 - Headers HTTP de sécurité renforcés : ajout de `Permissions-Policy` et `Content-Security-Policy` sur les réponses API.
 - Protection SSRF configurationnelle sur `/feedback` renforcée via parsing URL (`urllib.parse`) au lieu d'un simple `endswith`.
 - Anti-spoof rate limiting : `X-Forwarded-For` n'est utilisé que si `TRUST_PROXY_HEADERS=true` est explicitement activé.
 - Désérialisation RoBERTa durcie : validation SHA-256 optionnelle (`MODEL_SHA256_ROBERTA`) avant chargement pickle + résolution de chemin confinée à `models/`.
+- `/feedback` durci en production : rejet des requêtes avec en-tête `Origin` non autorisé (`403`).
+- Headers HTTP complétés : ajout de `X-Permitted-Cross-Domain-Policies` et `Cross-Origin-Opener-Policy`.
+- Corrélation requêtes API : ajout de l'en-tête `X-Request-ID` (génération serveur + propagation si fourni).
 
 ### Tests
+- Ajout de tests de validation texte whitespace-only sur `/predict` et `/checkin`.
+- Ajout de tests sécurité X-Forwarded-For (IP invalide ignorée + fallback socket).
 - Ajout de tests de régression sécurité pour CORS prod strict, validation URL Supabase, texte blanc-only, et normalisation des émotions.
 - Ajout de tests API pour `mental_roberta` et pour la politique `trust_proxy_headers` (fallback socket IP si proxy non fiable).
+- Ajout de tests `/analyze` pour rejeter `emotionId` invalide et les `clinicalDimensions` invalides.
+- Ajout de tests `/feedback` pour valider le filtrage `Origin` en production.
+- Ajout de tests API pour `X-Request-ID` (généré automatiquement et préservé quand fourni) + en-têtes sécurité complémentaires.
 
 ## [0.3.0] - 2026-03-18
 

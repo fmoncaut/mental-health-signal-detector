@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion } from "motion/react";
 import {
-  Heart,
   Phone,
   MessageCircle,
   Sparkles,
@@ -37,6 +36,16 @@ const getEmotionIcon = (emotionId: string, size: string = "w-16 h-16") => {
 };
 
 const VALID_EMOTIONS = new Set(["joy", "sadness", "anger", "fear", "stress", "calm", "tiredness", "pride"]);
+const VALID_EMOTION_COLORS = new Set([
+  "from-yellow-300 to-amber-400",
+  "from-blue-300 to-blue-400",
+  "from-red-300 to-rose-400",
+  "from-purple-300 to-violet-400",
+  "from-orange-300 to-orange-400",
+  "from-emerald-300 to-teal-400",
+  "from-slate-300 to-slate-400",
+  "from-pink-300 to-pink-400",
+]);
 
 export default function SupportResponse() {
   const navigate = useNavigate();
@@ -48,7 +57,8 @@ export default function SupportResponse() {
 
   // Validation et sanitisation
   const emotionId: string = VALID_EMOTIONS.has(rawEmotionId) ? rawEmotionId : "";
-  const emotionColor: string = location.state?.emotionColor ?? "";
+  const rawColor: string = location.state?.emotionColor ?? "";
+  const emotionColor: string = VALID_EMOTION_COLORS.has(rawColor) ? rawColor : "";
   const userText: string = typeof location.state?.userText === "string" ? location.state.userText : "";
   const mode: "kids" | "adult" = rawMode === "adult" ? "adult" : "kids";
   const mlScore: number | null = sanitizeMlScore(location.state?.mlScore);
@@ -113,6 +123,18 @@ export default function SupportResponse() {
           return mode === "kids"
             ? "C'est normal d'avoir peur parfois. Tu n'es pas seul avec cette inquiétude. Parler de ce qui te fait peur peut aider à se sentir mieux. Tu peux aussi en parler avec quelqu'un en qui tu as confiance."
             : "L'inquiétude que vous ressentez mérite d'être entendue. Il est important de ne pas rester seul(e) avec ces préoccupations. Parler à quelqu'un peut vraiment aider.";
+        case "anger":
+          return mode === "kids"
+            ? "Ta colère est forte en ce moment, et c'est difficile à porter. C'est courageux d'en parler. Si tu te sens dépassé, parler à un adulte de confiance peut vraiment t'aider."
+            : "La colère que vous ressentez est intense. Elle cache souvent de l'épuisement ou de la douleur sous-jacente. Ne restez pas seul(e) avec ça — parler à quelqu'un peut vraiment aider.";
+        case "stress":
+          return mode === "kids"
+            ? "Tu sembles vraiment sous pression en ce moment. Ce n'est pas normal de se sentir comme ça tout le temps. Essaie de souffler, et n'hésite pas à en parler à quelqu'un de confiance."
+            : "La pression que vous décrivez est importante. Un stress prolongé épuise le corps et l'esprit. Parler à un proche ou à un professionnel peut alléger cette charge.";
+        case "tiredness":
+          return mode === "kids"
+            ? "Tu sembles vraiment épuisé. Ton corps et ta tête ont besoin de repos. C'est important d'en parler à un adulte pour qu'on puisse t'aider à récupérer."
+            : "La fatigue que vous décrivez dépasse un simple besoin de sommeil. Un épuisement persistant mérite attention — votre médecin peut vous orienter vers les bonnes ressources.";
         default:
           return mode === "kids"
             ? "Ce que tu ressens est important et valide. Merci de m'avoir fait confiance. Si ça continue ou si ça devient trop difficile, n'hésite pas à en parler à un adulte de confiance."
@@ -238,7 +260,7 @@ export default function SupportResponse() {
               className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-lg"
             >
               <div className="flex items-start gap-3">
-                <Heart className="w-6 h-6 text-pink-400 flex-shrink-0 mt-1" fill="currentColor" />
+                <MessageCircle className="w-6 h-6 text-teal-500 flex-shrink-0 mt-1" />
                 <div>
                   <h2 className="mb-3" style={{ color: "#2A5F7D" }}>
                     {mode === "kids" ? "Message pour toi" : "Message de soutien"}

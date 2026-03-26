@@ -14,8 +14,9 @@ Variables d'environnement requises :
 
 from __future__ import annotations
 from urllib.parse import urlparse
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
 try:
@@ -23,6 +24,7 @@ try:
     _HTTPX_AVAILABLE = True
 except ImportError:
     _HTTPX_AVAILABLE = False
+    httpx = None  # type: ignore[assignment]
 
 from loguru import logger
 from src.common.config import get_settings
@@ -31,6 +33,11 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 _TABLE = "anonymous_feedback"
 _SUPABASE_DOMAIN = ".supabase.co"
+_REST_PREFIX = "/rest/v1"
+_SUPABASE_TIMEOUT_SECONDS = 5.0
+_SUPABASE_MAX_CONNECTIONS = 20
+_SUPABASE_MAX_KEEPALIVE = 10
+_supabase_client: "httpx.AsyncClient | None" = None
 
 
 def _is_valid_supabase_url(raw_url: str) -> bool:
@@ -50,7 +57,41 @@ def _is_valid_supabase_url(raw_url: str) -> bool:
         return False
     if parsed.fragment or parsed.query:
         return False
+    # Autorise uniquement la racine du projet Supabase, éventuellement avec /rest/v1
+    path = (parsed.path or "").rstrip("/")
+    if path not in ("", _REST_PREFIX):
+        return False
     return True
+
+
+def _build_supabase_insert_url(raw_url: str, table: str) -> str:
+    """Build a stable Supabase REST insert URL from project or rest base URL."""
+    base = raw_url.strip().rstrip("/")
+    if base.endswith(_REST_PREFIX):
+        return f"{base}/{table}"
+    return f"{base}{_REST_PREFIX}/{table}"
+
+
+def _get_supabase_client() -> "httpx.AsyncClient":
+    """Return a shared AsyncClient to reuse HTTP connections across requests."""
+    global _supabase_client
+    if _supabase_client is None:
+        _supabase_client = httpx.AsyncClient(  # type: ignore[union-attr]
+            timeout=_SUPABASE_TIMEOUT_SECONDS,
+            limits=httpx.Limits(  # type: ignore[union-attr]
+                max_connections=_SUPABASE_MAX_CONNECTIONS,
+                max_keepalive_connections=_SUPABASE_MAX_KEEPALIVE,
+            ),
+        )
+    return _supabase_client
+
+
+async def close_supabase_client() -> None:
+    """Close the shared Supabase client during app shutdown."""
+    global _supabase_client
+    if _supabase_client is not None:
+        await _supabase_client.aclose()
+        _supabase_client = None
 
 
 class FeedbackPayload(BaseModel):
@@ -58,7 +99,7 @@ class FeedbackPayload(BaseModel):
 
     text: str = Field(..., min_length=1, max_length=5000)
     emotion: str = Field(..., min_length=1, max_length=50)
-    distress_level: int = Field(..., ge=0, le=4)
+    distress_level: Literal[0, 1, 2, 3, 4]
     score_ml: float | None = Field(None, ge=0.0, le=1.0)
     consent: bool
 
@@ -88,7 +129,7 @@ class FeedbackPayload(BaseModel):
 
 
 @router.post("", status_code=status.HTTP_204_NO_CONTENT)
-async def save_feedback(payload: FeedbackPayload) -> None:
+async def save_feedback(request: Request, payload: FeedbackPayload) -> None:
     """Persiste un retour anonyme dans Supabase (opt-in explicite uniquement).
 
     Retourne 204 No Content en cas de succès.
@@ -101,6 +142,17 @@ async def save_feedback(payload: FeedbackPayload) -> None:
     if not supabase_url or not supabase_key:
         logger.warning("Supabase non configuré (SUPABASE_URL/SUPABASE_SERVICE_KEY manquants) — feedback ignoré")
         return  # Dégradation gracieuse : pas d'erreur côté utilisateur
+
+    # Contrôle Origin en production pour réduire le risque de soumissions cross-site.
+    if settings.env == "production":
+        origin = request.headers.get("origin")
+        raw_allowed = settings.allowed_origins
+        allowed_origins = {o.strip() for o in raw_allowed.split(",") if o.strip()} if raw_allowed and raw_allowed != "*" else set()
+
+        if not origin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin manquante")
+        if not allowed_origins or origin not in allowed_origins:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin non autorisée")
 
     # Validation domaine Supabase — anti-SSRF configuration injection
     if not _is_valid_supabase_url(supabase_url):
@@ -119,19 +171,19 @@ async def save_feedback(payload: FeedbackPayload) -> None:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                f"{supabase_url}/rest/v1/{_TABLE}",
-                headers={
-                    "apikey": supabase_key,
-                    "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal",
-                },
-                json=row,
-            )
-            resp.raise_for_status()
-            logger.info("Feedback anonyme enregistré — emotion={} distress_level={}", payload.emotion, payload.distress_level)
+        client = _get_supabase_client()
+        resp = await client.post(
+            _build_supabase_insert_url(supabase_url, _TABLE),
+            headers={
+                "apikey": supabase_key,
+                "Authorization": f"Bearer {supabase_key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            json=row,
+        )
+        resp.raise_for_status()
+        logger.info("Feedback anonyme enregistré — emotion={} distress_level={}", payload.emotion, payload.distress_level)
     except httpx.HTTPStatusError as exc:
         # Ne pas loguer response.text (peut contenir des infos sensibles)
         logger.error("Supabase HTTP {} — feedback non persisté", exc.response.status_code)

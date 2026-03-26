@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CheckInRequest(BaseModel):
@@ -16,6 +16,16 @@ class CheckInRequest(BaseModel):
         description="Texte libre optionnel",
     )
     step: int = Field(default=1, ge=1, le=2, description="1=check-in initial, 2=réponse à la question de suivi")
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        text = v.strip()
+        if not text:
+            raise ValueError("text cannot be blank")
+        return text
 
 
 class ResourceItem(BaseModel):

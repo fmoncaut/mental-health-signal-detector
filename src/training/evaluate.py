@@ -20,6 +20,7 @@ from loguru import logger
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
+    precision_score,
     recall_score,
     classification_report,
     confusion_matrix,
@@ -91,6 +92,130 @@ def plot_confusion_matrix(pipeline, test_df: pd.DataFrame, save: bool = True) ->
         fig.savefig(path, bbox_inches="tight")
         logger.info(f"Matrice de confusion sauvegardée → {path}")
     plt.close(fig)
+
+
+def plot_confusion_matrices_comparative(
+    model_results: list[dict],
+    save: bool = True,
+    output_filename: str = "confusion_matrices_comparative.png",
+) -> Path | None:
+    """Génère une figure comparative détaillée des matrices de confusion.
+
+    Chaque entrée de ``model_results`` doit contenir au minimum:
+      - name (str)
+      - available (bool)
+    Si ``available`` est True, il faut aussi fournir:
+      - y_true (array-like)
+      - y_pred (array-like)
+    Optionnel: ``reason`` (str) si ``available`` est False.
+    """
+    if not _MATPLOTLIB_AVAILABLE:
+        logger.warning("matplotlib non disponible — figure comparative ignorée")
+        return None
+
+    if not model_results:
+        logger.warning("Aucun résultat modèle fourni pour la figure comparative")
+        return None
+
+    n_models = len(model_results)
+    n_cols = 2 if n_models > 1 else 1
+    n_rows = int(np.ceil(n_models / n_cols))
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(8.4 * n_cols, 6.4 * n_rows),
+        constrained_layout=True,
+    )
+    axes = np.atleast_1d(axes).ravel()
+    im = None
+
+    for i, result in enumerate(model_results):
+        ax = axes[i]
+        name = result.get("name", f"Model {i + 1}")
+        available = bool(result.get("available", False))
+
+        if not available:
+            reason = result.get("reason", "Non disponible localement")
+            ax.axis("off")
+            ax.text(
+                0.5,
+                0.56,
+                name,
+                ha="center",
+                va="center",
+                fontsize=13,
+                fontweight="bold",
+                transform=ax.transAxes,
+            )
+            ax.text(
+                0.5,
+                0.44,
+                f"Indisponible\n{reason}",
+                ha="center",
+                va="center",
+                fontsize=11,
+                color="dimgray",
+                transform=ax.transAxes,
+            )
+            continue
+
+        y_true = np.asarray(result["y_true"])
+        y_pred = np.asarray(result["y_pred"])
+
+        cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+        cm_total = cm.sum()
+        cm_norm = cm / np.maximum(cm.sum(axis=1, keepdims=True), 1)
+
+        acc = accuracy_score(y_true, y_pred)
+        prec = precision_score(y_true, y_pred, zero_division=0)
+        rec = recall_score(y_true, y_pred, zero_division=0)
+        f1 = f1_score(y_true, y_pred, zero_division=0)
+
+        im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0.0, vmax=1.0)
+        ax.set_xticks([0, 1], ["Pred: non-détresse", "Pred: détresse"], rotation=18, ha="right")
+        ax.set_yticks([0, 1], ["True: non-détresse", "True: détresse"])
+
+        for r in range(2):
+            for c in range(2):
+                count = cm[r, c]
+                ratio = cm_norm[r, c]
+                color = "white" if ratio >= 0.5 else "black"
+                ax.text(
+                    c,
+                    r,
+                    f"{count}\n({ratio:.1%})",
+                    ha="center",
+                    va="center",
+                    color=color,
+                    fontsize=10,
+                    fontweight="bold",
+                )
+
+        ax.set_title(
+            (
+                f"{name}\n"
+                f"Acc={acc:.3f} | Prec={prec:.3f} | Rec={rec:.3f} | F1={f1:.3f} | N={cm_total}"
+            ),
+            fontsize=11,
+        )
+
+    for j in range(n_models, len(axes)):
+        axes[j].axis("off")
+
+    if im is not None:
+        cbar = fig.colorbar(im, ax=axes[:n_models].tolist(), location="right", shrink=0.92, pad=0.03)
+        cbar.set_label("Taux normalisé par classe vraie", rotation=90)
+    fig.suptitle("Comparatif des matrices de confusion (local)", fontsize=15, fontweight="bold")
+
+    if save:
+        REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = REPORTS_DIR / output_filename
+        fig.savefig(output_path, bbox_inches="tight", dpi=180)
+        logger.info(f"Figure comparative sauvegardée → {output_path}")
+        plt.close(fig)
+        return output_path
+
+    return None
 
 
 def plot_calibration(pipeline, test_df: pd.DataFrame, save: bool = True) -> None:
