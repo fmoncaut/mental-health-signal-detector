@@ -58,3 +58,6 @@ docker/.env
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+
+# Generated report images
+reports/confusion_matrices_comparative.png
